@@ -6,11 +6,6 @@ ini_set('default_socket_timeout', 60);
 
 date_default_timezone_set('Asia/Shanghai'); // 使用北京时区
 
-// 使用Resend API发送邮件，不再依赖PHPMailer库
-
-// 现有的配置代码...
-
-// JSON文件存储配置
 define('DATA_DIR', 'data');
 define('USERS_FILE', DATA_DIR . '/users.json');
 define('RECORDS_FILE', DATA_DIR . '/records.json');
@@ -18,7 +13,7 @@ define('CONFIG_FILE', DATA_DIR . '/config.json');
 
 // 系统配置
 define('ADMIN_USERNAME', 'admin');
-define('ADMIN_PASSWORD', 'gzx140715');
+define('ADMIN_PASSWORD', '123456');
 define('SITE_NAME', 'AI代码调试系统');
 
 // 加密密钥（请修改此密钥）
