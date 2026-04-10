@@ -46,6 +46,41 @@ $recentRecords = array_slice($userRecords, 0, 5);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>记录详情 - AI代码调试系统</title>
+    <!-- MathJax Configuration -->
+    <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true,
+        processEnvironments: true,
+        macros: {
+          "RR": "\\mathbb{R}",
+          "NN": "\\mathbb{N}",
+          "ZZ": "\\mathbb{Z}",
+          "QQ": "\\mathbb{Q}",
+          "CC": "\\mathbb{C}",
+          "FF": "\\mathbb{F}",
+          "PP": "\\mathbb{P}",
+          "EE": "\\mathbb{E}",
+          "dd": "\\mathrm{d}",
+          "ee": "\\mathrm{e}",
+          "ii": "\\mathrm{i}",
+          "oo": "\\infty",
+          "eps": "\\varepsilon"
+        }
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+        ignoreHtmlClass: 'tex2jax_ignore',
+        processHtmlClass: 'tex2jax_process'
+      },
+      loader: {
+        load: ['[tex]/color']
+      }
+    };
+    </script>
+    <script id="MathJax-script" src="mathjax/es5/tex-mml-chtml.js"></script>
     <style>
         :root {
             --primary-color: #007bff;
@@ -237,6 +272,12 @@ $recentRecords = array_slice($userRecords, 0, 5);
             white-space: pre-wrap;
             border: 1px solid #333;
         }
+
+        .dark-mode .code-block {
+            background: #2d3748 !important;
+            color: #f8f9fa !important;
+            border-color: #4a5568 !important;
+        }
         
         .ai-response {
             background: var(--light-bg);
@@ -344,10 +385,20 @@ $recentRecords = array_slice($userRecords, 0, 5);
             margin: 15px 0;
         }
         
+        .dark-mode .markdown-content pre {
+            background: #2d3748 !important;
+            border-color: #4a5568 !important;
+            color: #f8f9fa !important;
+        }
+        
         .markdown-content pre code {
             background: transparent !important;
             color: #d4d4d4 !important;
             padding: 0 !important;
+        }
+
+        .dark-mode .markdown-content pre code {
+            color: #f8f9fa !important;
         }
         
         .markdown-content blockquote {
@@ -360,6 +411,22 @@ $recentRecords = array_slice($userRecords, 0, 5);
 
         .dark-mode .markdown-content blockquote {
             color: #a0aec0;
+        }
+        
+        /* MathJax 样式 */
+        .mjx-chtml {
+            font-size: 1.1em !important;
+        }
+        
+        /* 行内公式样式 */
+        .mjx-chtml[display="inline"] {
+            vertical-align: baseline;
+        }
+        
+        /* 块级公式样式 */
+        .mjx-chtml[display="block"] {
+            text-align: center;
+            margin: 1em 0;
         }
         
         .latex-formula {
@@ -456,7 +523,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
             
             <div class="record-section">
                 <h2>题目</h2>
-                <p style="white-space: pre-wrap;"><?php echo htmlspecialchars($record['problem']); ?></p>
+                <?php echo markdownToHtml($record['problem']); ?>
             </div>
             
             <div class="record-section">
@@ -466,27 +533,14 @@ $recentRecords = array_slice($userRecords, 0, 5);
             
             <div class="record-section">
                 <h2>评测结果</h2>
-                <p style="white-space: pre-wrap;"><?php echo htmlspecialchars($record['evaluation_result']); ?></p>
+                <?php echo markdownToHtml($record['evaluation_result']); ?>
             </div>
             
             <?php if (!empty($record['ai_response'])): ?>
             <div class="record-section">
                 <h2>AI分析结果</h2>
-                <div class="ai-response markdown-content">
-                    <?php 
-                    // 增强的markdown和LaTeX处理
-                    $response = htmlspecialchars($record['ai_response']);
-                    // 处理代码块
-                    $response = preg_replace('/```(\w+)?\n(.*?)\n```/s', '<pre><code class="language-$1">$2</code></pre>', $response);
-                    // 处理行内代码
-                    $response = preg_replace('/`(.*?)`/', '<code>$1</code>', $response);
-                    // 处理标题
-                    $response = preg_replace('/^# (.*)$/m', '<h3>$1</h3>', $response);
-                    $response = preg_replace('/^## (.*)$/m', '<h4>$1</h4>', $response);
-                    // 处理LaTeX公式（简单支持）
-                    $response = preg_replace('/\\$(.*?)\\$/s', '<span class="latex-formula">$1</span>', $response);
-                    echo nl2br($response);
-                    ?>
+                <div class="ai-response">
+                    <?php echo markdownToHtml($record['ai_response']); ?>
                 </div>
             </div>
             <?php endif; ?>
@@ -523,5 +577,6 @@ $recentRecords = array_slice($userRecords, 0, 5);
             document.querySelector('.theme-toggle').textContent = '☀️ 浅色模式';
         }
     </script>
+
 </body>
 </html>

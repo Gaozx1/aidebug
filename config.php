@@ -78,6 +78,10 @@ function initDataFiles() {
         'smtp_from_email' => ['config_value' => '', 'description' => '发件人邮箱'],
         'smtp_from_name' => ['config_value' => 'AI代码调试系统', 'description' => '发件人名称'],
         
+        // 更新配置
+        'update_repo' => ['config_value' => 'Gaozx1/aidebug', 'description' => '自动更新仓库地址，格式 user/repo'],
+        'update_branch' => ['config_value' => 'main', 'description' => '自动更新分支名称'],
+        
         // 公告系统配置
         'announcement_enabled' => ['config_value' => '0', 'description' => '启用系统公告（0=关闭，1=开启）'],
         'announcement_text' => ['config_value' => '', 'description' => '系统公告内容'],
@@ -496,37 +500,96 @@ function displayMessage() {
 
 // 增强的Markdown和LaTeX转换函数
 function markdownToHtml($markdown) {
-    // 处理LaTeX公式（简单支持）
-    $markdown = preg_replace('/\\$(.*?)\\$/s', '<span class="latex-formula">$1</span>', $markdown);
-    
+    $markdown = str_replace(["\r\n", "\r"], "\n", $markdown);
+
+    // 先处理代码块，避免后续转换影响代码内容
+    $codeBlocks = [];
+    $markdown = preg_replace_callback('/```(\w+)?\n([\s\S]*?)\n```/m', function ($matches) use (&$codeBlocks) {
+        $langClass = $matches[1] ? 'language-' . $matches[1] : '';
+        $content = htmlspecialchars($matches[2], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $placeholder = '___CODE_BLOCK_' . count($codeBlocks) . '___';
+        $codeBlocks[$placeholder] = '<pre><code class="' . $langClass . '">' . $content . '</code></pre>';
+        return $placeholder;
+    }, $markdown);
+
+    // 先保存 LaTeX 内容，保持原始公式标记
+    $latexBlocks = [];
+    $markdown = preg_replace_callback('/\$\$([\s\S]*?)\$\$/m', function($matches) use (&$latexBlocks) {
+        $placeholder = '___LATEX_BLOCK_' . count($latexBlocks) . '___';
+        $latexBlocks[$placeholder] = '$$' . $matches[1] . '$$';
+        return $placeholder;
+    }, $markdown);
+    $markdown = preg_replace_callback('/\\\\\[(.*?)\\\\\]/s', function($matches) use (&$latexBlocks) {
+        $placeholder = '___LATEX_BLOCK_' . count($latexBlocks) . '___';
+        $latexBlocks[$placeholder] = '\\[' . $matches[1] . '\\]';
+        return $placeholder;
+    }, $markdown);
+    $markdown = preg_replace_callback('/\\\\\((.*?)\\\\\)/s', function($matches) use (&$latexBlocks) {
+        $placeholder = '___LATEX_INLINE_' . count($latexBlocks) . '___';
+        $latexBlocks[$placeholder] = '\\(' . $matches[1] . '\\)';
+        return $placeholder;
+    }, $markdown);
+    $markdown = preg_replace_callback('/\$(?!\$)(.+?)\$/s', function($matches) use (&$latexBlocks) {
+        $placeholder = '___LATEX_INLINE_' . count($latexBlocks) . '___';
+        $latexBlocks[$placeholder] = '$' . $matches[1] . '$';
+        return $placeholder;
+    }, $markdown);
+
+    $markdown = htmlspecialchars($markdown, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+    // 行内代码
+    $markdown = preg_replace('/`([^`\n]+)`/', '<code>$1</code>', $markdown);
+
     // 标题
-    $markdown = preg_replace('/^#\s+(.+)$/m', '<h1>$1</h1>', $markdown);
-    $markdown = preg_replace('/^##\s+(.+)$/m', '<h2>$1</h2>', $markdown);
+    $markdown = preg_replace('/^######\s+(.+)$/m', '<h6>$1</h6>', $markdown);
+    $markdown = preg_replace('/^#####\s+(.+)$/m', '<h5>$1</h5>', $markdown);
+    $markdown = preg_replace('/^####\s+(.+)$/m', '<h4>$1</h4>', $markdown);
     $markdown = preg_replace('/^###\s+(.+)$/m', '<h3>$1</h3>', $markdown);
-    
-    // 粗体和斜体
-    $markdown = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $markdown);
-    $markdown = preg_replace('/\*(.+?)\*/', '<em>$1</em>', $markdown);
-    
-    // 代码块
-    $markdown = preg_replace('/```(\w+)?\n(.+?)\n```/s', '<pre><code class="language-$1">$2</code></pre>', $markdown);
-    $markdown = preg_replace('/`(.+?)`/', '<code>$1</code>', $markdown);
-    
-    // 列表
-    $markdown = preg_replace('/^-\s+(.+)$/m', '<li>$1</li>', $markdown);
-    $markdown = preg_replace('/(<li>.+<\/li>)+/s', '<ul>$0</ul>', $markdown);
-    
+    $markdown = preg_replace('/^##\s+(.+)$/m', '<h2>$1</h2>', $markdown);
+    $markdown = preg_replace('/^#\s+(.+)$/m', '<h1>$1</h1>', $markdown);
+
+    // 粗体与斜体
+    $markdown = preg_replace('/\*\*(.+?)\*\*/s', '<strong>$1</strong>', $markdown);
+    $markdown = preg_replace('/\*(.+?)\*/s', '<em>$1</em>', $markdown);
+
     // 链接
     $markdown = preg_replace('/\[(.+?)\]\((.+?)\)/', '<a href="$2">$1</a>', $markdown);
-    
+
     // 引用块
     $markdown = preg_replace('/^>\s+(.+)$/m', '<blockquote>$1</blockquote>', $markdown);
-    
-    // 段落
-    $markdown = preg_replace('/\n\n/', '</p><p>', $markdown);
-    $markdown = '<div class="markdown-content"><p>' . $markdown . '</p></div>';
-    
-    return $markdown;
+
+    // 列表
+    $markdown = preg_replace_callback('/(?:^|\n)((?:- .+(?:\n|$))+)/', function ($matches) {
+        $items = preg_replace('/^- /m', '', trim($matches[1]));
+        $items = preg_replace('/^(.+)$/m', '<li>$1</li>', $items);
+        return "\n<ul>\n" . $items . "\n</ul>\n";
+    }, $markdown);
+
+    // 分段处理
+    $parts = preg_split('/\n{2,}/', $markdown);
+    $html = [];
+    foreach ($parts as $part) {
+        $part = trim($part);
+        if ($part === '') {
+            continue;
+        }
+        if (preg_match('/^<(h[1-6]|ul|pre|blockquote|code)/', $part)) {
+            $html[] = $part;
+        } else {
+            $html[] = '<p>' . nl2br($part) . '</p>';
+        }
+    }
+    $markdown = implode("\n", $html);
+
+    // 替换回 LaTeX 和代码块
+    foreach ($latexBlocks as $placeholder => $latexText) {
+        $markdown = str_replace($placeholder, $latexText, $markdown);
+    }
+    foreach ($codeBlocks as $placeholder => $codeHtml) {
+        $markdown = str_replace($placeholder, $codeHtml, $markdown);
+    }
+
+    return '<div class="markdown-content">' . $markdown . '</div>';
 }
 
 
@@ -839,5 +902,217 @@ function getActiveRedeemCodes() {
     }
     
     return $active_codes;
+}
+
+function downloadFile($url, $destination, &$error = null) {
+    if (function_exists('curl_init')) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'AI-Code-Debug-System/1.0');
+        curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+        $data = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($data === false || $httpCode !== 200) {
+            $error = $curlError ? $curlError : "HTTP {$httpCode}";
+            return false;
+        }
+
+        return file_put_contents($destination, $data) !== false;
+    }
+
+    $data = @file_get_contents($url);
+    if ($data === false) {
+        $error = '无法下载文件';
+        return false;
+    }
+
+    return file_put_contents($destination, $data) !== false;
+}
+
+function extractZipFile($zipPath, $destination, &$error = null) {
+    if (!class_exists('ZipArchive')) {
+        $error = 'ZipArchive 扩展不可用';
+        return false;
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($zipPath) !== true) {
+        $error = '无法打开 ZIP 文件';
+        return false;
+    }
+
+    if (!$zip->extractTo($destination)) {
+        $zip->close();
+        $error = '解压 ZIP 文件失败';
+        return false;
+    }
+
+    $zip->close();
+    return true;
+}
+
+function isExcludedPath($relativePath, $excludePatterns) {
+    $relative = str_replace('\\', '/', trim($relativePath, '/'));
+    foreach ($excludePatterns as $pattern) {
+        $pattern = str_replace('\\', '/', trim($pattern, '/'));
+        if ($pattern === '') {
+            continue;
+        }
+        if ($relative === $pattern || strpos($relative, $pattern . '/') === 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function copyDirectory($source, $destination, $excludePatterns = [], &$error = null) {
+    if (!is_dir($source)) {
+        $error = '源目录不存在: ' . $source;
+        return false;
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($source, RecursiveDirectoryIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $item) {
+        $subPath = str_replace('\\', '/', substr($item->getPathname(), strlen($source) + 1));
+        if (isExcludedPath($subPath, $excludePatterns)) {
+            continue;
+        }
+
+        $targetPath = $destination . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $subPath);
+
+        if ($item->isDir()) {
+            if (!is_dir($targetPath) && !mkdir($targetPath, 0755, true)) {
+                $error = '无法创建目录: ' . $targetPath;
+                return false;
+            }
+        } else {
+            $dir = dirname($targetPath);
+            if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
+                $error = '无法创建目录: ' . $dir;
+                return false;
+            }
+            if (!copy($item->getPathname(), $targetPath)) {
+                $error = '复制文件失败: ' . $item->getPathname();
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+function getGithubRepoInfo($repo, &$error = null) {
+    $apiUrl = "https://api.github.com/repos/{$repo}";
+
+    if (function_exists('curl_init')) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $apiUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'AI-Code-Debug-System/1.0');
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($response === false || $httpCode !== 200) {
+            $error = $curlError ? $curlError : "GitHub API 返回 HTTP {$httpCode}";
+            return false;
+        }
+    } else {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'header' => 'User-Agent: AI-Code-Debug-System/1.0\r\n',
+                'timeout' => 30,
+            ]
+        ]);
+        $response = @file_get_contents($apiUrl, false, $context);
+        if ($response === false) {
+            $error = '无法访问 GitHub API';
+            return false;
+        }
+    }
+
+    $repoInfo = json_decode($response, true);
+    if (!is_array($repoInfo) || isset($repoInfo['message'])) {
+        $message = is_array($repoInfo) && isset($repoInfo['message']) ? $repoInfo['message'] : '无法解析 GitHub API 返回内容';
+        $error = 'GitHub 仓库检查失败：' . $message;
+        return false;
+    }
+
+    return $repoInfo;
+}
+
+function autoUpdateFromGithub($repo, $branch = 'main') {
+    $rootPath = __DIR__;
+    $tmpDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'aidebug_update_' . time();
+    $zipPath = $tmpDir . DIRECTORY_SEPARATOR . 'update.zip';
+    $extractDir = $tmpDir . DIRECTORY_SEPARATOR . 'package';
+
+    if (!mkdir($tmpDir, 0755, true) && !is_dir($tmpDir)) {
+        return ['success' => false, 'message' => '无法创建临时目录'];
+    }
+
+    $repoInfo = getGithubRepoInfo($repo, $error);
+    if ($repoInfo === false) {
+        return ['success' => false, 'message' => $error];
+    }
+
+    if (empty($branch) && isset($repoInfo['default_branch'])) {
+        $branch = $repoInfo['default_branch'];
+    }
+
+    $zipUrl = "https://codeload.github.com/{$repo}/zip/{$branch}";
+    if (!downloadFile($zipUrl, $zipPath, $error)) {
+        return ['success' => false, 'message' => '下载更新包失败: ' . $error . '，请检查仓库地址和分支设置'];
+    }
+
+    if (!extractZipFile($zipPath, $extractDir, $error)) {
+        return ['success' => false, 'message' => '解压更新包失败: ' . $error];
+    }
+
+    $entries = scandir($extractDir);
+    $sourceDir = '';
+    foreach ($entries as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        $path = $extractDir . DIRECTORY_SEPARATOR . $entry;
+        if (is_dir($path)) {
+            $sourceDir = $path;
+            break;
+        }
+    }
+
+    if (!$sourceDir) {
+        return ['success' => false, 'message' => '更新包结构异常'];
+    }
+
+    $exclude = [
+        'data',
+        '.git',
+        'config.php'
+    ];
+
+    if (!copyDirectory($sourceDir, $rootPath, $exclude, $error)) {
+        return ['success' => false, 'message' => '复制更新文件失败: ' . $error];
+    }
+
+    return ['success' => true, 'message' => '更新完成，请检查页面是否正常。'];
 }
 ?>

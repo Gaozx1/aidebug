@@ -58,6 +58,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $analysis_cost = (int)$_POST['analysis_cost'];
         $signin_reward = (int)$_POST['signin_reward'];
         $invite_reward = (int)$_POST['invite_reward'];
+        $update_repo = trim($_POST['update_repo']);
+        $update_branch = trim($_POST['update_branch']);
         $announcement_enabled = isset($_POST['announcement_enabled']) ? trim($_POST['announcement_enabled']) : '0';
         $announcement_text = trim($_POST['announcement_text']);
         
@@ -67,6 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $config['analysis_cost'] = $analysis_cost;
         $config['signin_reward'] = $signin_reward;
         $config['invite_reward'] = $invite_reward;
+        $config['update_repo'] = $update_repo;
+        $config['update_branch'] = $update_branch;
         $config['announcement_enabled'] = $announcement_enabled;
         $config['announcement_text'] = $announcement_text;
         
@@ -104,6 +108,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 setMessage("SMTP连接测试失败，请检查配置", 'error');
             }
+        }
+    }
+
+    // 自动更新系统代码
+    if (isset($_POST['perform_update'])) {
+        $config = getConfig();
+        $repo = getConfigValue($config, 'update_repo', 'Gaozx1/aidebug');
+        $branch = getConfigValue($config, 'update_branch', 'main');
+        $updateResult = autoUpdateFromGithub($repo, $branch);
+        if ($updateResult['success']) {
+            setMessage('更新成功：' . $updateResult['message'], 'success');
+        } else {
+            setMessage('更新失败：' . $updateResult['message'], 'error');
         }
     }
     
@@ -191,6 +208,8 @@ $signin_reward = isset($config['signin_reward']) ? $config['signin_reward'] : 50
 $invite_reward = isset($config['invite_reward']) ? $config['invite_reward'] : 100;
 $announcement_enabled = isset($config['announcement_enabled']) ? $config['announcement_enabled'] : '0';
 $announcement_text = isset($config['announcement_text']) ? $config['announcement_text'] : '';
+$update_repo = isset($config['update_repo']) ? $config['update_repo'] : 'Gaozx1/aidebug';
+$update_branch = isset($config['update_branch']) ? $config['update_branch'] : 'main';
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -242,6 +261,7 @@ $announcement_text = isset($config['announcement_text']) ? $config['announcement
                 <button class="tab-button active" onclick="switchTab('api-tab', event)">API配置</button>
                 <button class="tab-button" onclick="switchTab('smtp-tab', event)">Resend配置</button>
                 <button class="tab-button" onclick="switchTab('system-tab', event)">系统设置</button>
+                <button class="tab-button" onclick="switchTab('update-tab', event)">系统更新</button>
                 <button class="tab-button" onclick="switchTab('redeem-tab', event)">兑换码管理</button>
                 <button class="tab-button" onclick="switchTab('users-tab', event)">用户管理</button>
                 <button class="tab-button" onclick="switchTab('records-tab', event)">记录管理</button>
@@ -361,6 +381,16 @@ $announcement_text = isset($config['announcement_text']) ? $config['announcement
                     </div>
 
                     <div class="form-group">
+                        <label for="update_repo">自动更新仓库</label>
+                        <input type="text" id="update_repo" name="update_repo" value="<?php echo htmlspecialchars($update_repo); ?>" placeholder="Gaozx1/aidebug">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="update_branch">自动更新分支</label>
+                        <input type="text" id="update_branch" name="update_branch" value="<?php echo htmlspecialchars($update_branch); ?>" placeholder="main">
+                    </div>
+
+                    <div class="form-group">
                         <label for="announcement_enabled">启用系统公告</label>
                         <select id="announcement_enabled" name="announcement_enabled" required>
                             <option value="0" <?php echo $announcement_enabled === '0' ? 'selected' : ''; ?>>关闭</option>
@@ -386,6 +416,25 @@ $announcement_text = isset($config['announcement_text']) ? $config['announcement
                         <li><strong>单次分析消耗</strong>: 用户每次代码分析需要消耗的积分</li>
                         <li><strong>每日签到奖励</strong>: 用户每日签到获得的积分</li>
                         <li><strong>邀请好友奖励</strong>: 成功邀请好友后获得的积分</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 系统更新 -->
+            <div id="update-tab" class="tab-content">
+                <h3>系统更新</h3>
+                <p>从 GitHub 仓库 <strong><?php echo htmlspecialchars($update_repo); ?></strong> 的 <strong><?php echo htmlspecialchars($update_branch); ?></strong> 分支拉取最新版本并更新当前系统（保留本地 data 和 config.php）。</p>
+                <form method="POST" class="config-form" style="max-width: 600px;">
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <button type="submit" name="perform_update" class="btn btn-danger">立即更新系统</button>
+                    </div>
+                </form>
+                <div class="test-section">
+                    <h4>💡 更新说明</h4>
+                    <ul>
+                        <li>自动更新会下载 GitHub 上所配置分支的最新代码。</li>
+                        <li>会保留本地 <code>data/</code> 目录和 <code>config.php</code>，避免覆盖本地配置与用户数据。</li>
+                        <li>更新后请刷新页面并检查系统是否正常。</li>
                     </ul>
                 </div>
             </div>
