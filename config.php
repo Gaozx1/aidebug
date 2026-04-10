@@ -898,220 +898,210 @@ function getActiveRedeemCodes() {
     
     return $active_codes;
 }
-<<<<<<< HEAD
 
-function downloadFile($url, $destination, &$error = null) {
-    if (function_exists('curl_init')) {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'AI-Code-Debug-System/1.0');
-        curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-        $data = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
-
-        if ($data === false || $httpCode !== 200) {
-            $error = $curlError ? $curlError : "HTTP {$httpCode}";
-            return false;
-        }
-
-        return file_put_contents($destination, $data) !== false;
+// 从 GitHub 自动更新系统
+function autoUpdateFromGithub($repo, $branch = 'main') {
+    // 检查仓库格式
+    if (!preg_match('/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+$/', $repo)) {
+        return ['success' => false, 'message' => '仓库格式无效，应为 user/repo 格式'];
     }
 
-    $data = @file_get_contents($url);
-    if ($data === false) {
-        $error = '无法下载文件';
-        return false;
+    // 检查 cURL 是否可用
+    if (!function_exists('curl_init')) {
+        return ['success' => false, 'message' => '服务器不支持 cURL，无法进行自动更新'];
     }
 
-    return file_put_contents($destination, $data) !== false;
-}
+    // 构建 API URL
+    $api_url = "https://api.github.com/repos/{$repo}";
+    $zip_url = "https://github.com/{$repo}/archive/refs/heads/{$branch}.zip";
 
-function extractZipFile($zipPath, $destination, &$error = null) {
+    // 使用 cURL 检查仓库是否存在
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $api_url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'PHP-AutoUpdate/1.0');
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // 在开发环境中可能需要
+
+    $repo_info = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($http_code === 404) {
+        return ['success' => false, 'message' => 'GitHub 仓库不存在，请检查仓库地址'];
+    }
+
+    if ($http_code !== 200) {
+        return ['success' => false, 'message' => '无法访问 GitHub API，HTTP 状态码：' . $http_code];
+    }
+
+    $repo_data = json_decode($repo_info, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        return ['success' => false, 'message' => 'GitHub API 返回无效数据'];
+    }
+
+    // 获取最新提交信息
+    $commits_url = "https://api.github.com/repos/{$repo}/commits/{$branch}";
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $commits_url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'PHP-AutoUpdate/1.0');
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+
+    $commit_info = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($http_code !== 200) {
+        return ['success' => false, 'message' => '无法获取提交信息，HTTP 状态码：' . $http_code];
+    }
+
+    $commit_data = json_decode($commit_info, true);
+    if (json_last_error() !== JSON_ERROR_NONE || !isset($commit_data['sha'])) {
+        return ['success' => false, 'message' => '无法解析提交信息'];
+    }
+
+    $latest_commit = $commit_data['sha'];
+    $commit_message = $commit_data['commit']['message'] ?? '无提交信息';
+
+    // 检查本地版本（如果有的话）
+    $version_file = 'data/version.txt';
+    $current_commit = '';
+    if (file_exists($version_file)) {
+        $current_commit = trim(file_get_contents($version_file));
+    }
+
+    if ($current_commit === $latest_commit) {
+        return ['success' => true, 'message' => '系统已是最新版本'];
+    }
+
+    // 下载更新包
+    $temp_zip = 'data/update_temp.zip';
+    $update_dir = 'data/update_temp';
+
+    // 清理旧的临时文件
+    if (file_exists($temp_zip)) unlink($temp_zip);
+    if (is_dir($update_dir)) {
+        array_map('unlink', glob("$update_dir/*"));
+        rmdir($update_dir);
+    }
+
+    // 下载 ZIP 文件
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $zip_url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'PHP-AutoUpdate/1.0');
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true); // 跟随重定向
+
+    $zip_content = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($http_code !== 200) {
+        return ['success' => false, 'message' => '无法下载更新包，HTTP 状态码：' . $http_code];
+    }
+
+    file_put_contents($temp_zip, $zip_content);
+
+    // 解压 ZIP 文件
     if (!class_exists('ZipArchive')) {
-        $error = 'ZipArchive 扩展不可用';
-        return false;
+        unlink($temp_zip);
+        return ['success' => false, 'message' => '服务器不支持 ZIP 解压功能'];
     }
 
     $zip = new ZipArchive();
-    if ($zip->open($zipPath) !== true) {
-        $error = '无法打开 ZIP 文件';
-        return false;
+    if ($zip->open($temp_zip) !== true) {
+        unlink($temp_zip);
+        return ['success' => false, 'message' => '无法打开更新包'];
     }
 
-    if (!$zip->extractTo($destination)) {
-        $zip->close();
-        $error = '解压 ZIP 文件失败';
-        return false;
-    }
-
+    mkdir($update_dir);
+    $zip->extractTo($update_dir);
     $zip->close();
-    return true;
-}
+    unlink($temp_zip);
 
-function isExcludedPath($relativePath, $excludePatterns) {
-    $relative = str_replace('\\', '/', trim($relativePath, '/'));
-    foreach ($excludePatterns as $pattern) {
-        $pattern = str_replace('\\', '/', trim($pattern, '/'));
-        if ($pattern === '') {
-            continue;
-        }
-        if ($relative === $pattern || strpos($relative, $pattern . '/') === 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
-function copyDirectory($source, $destination, $excludePatterns = [], &$error = null) {
-    if (!is_dir($source)) {
-        $error = '源目录不存在: ' . $source;
-        return false;
-    }
-
-    $iterator = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($source, RecursiveDirectoryIterator::SKIP_DOTS),
-        RecursiveIteratorIterator::SELF_FIRST
-    );
-
-    foreach ($iterator as $item) {
-        $subPath = str_replace('\\', '/', substr($item->getPathname(), strlen($source) + 1));
-        if (isExcludedPath($subPath, $excludePatterns)) {
-            continue;
-        }
-
-        $targetPath = $destination . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $subPath);
-
-        if ($item->isDir()) {
-            if (!is_dir($targetPath) && !mkdir($targetPath, 0755, true)) {
-                $error = '无法创建目录: ' . $targetPath;
-                return false;
-            }
-        } else {
-            $dir = dirname($targetPath);
-            if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
-                $error = '无法创建目录: ' . $dir;
-                return false;
-            }
-            if (!copy($item->getPathname(), $targetPath)) {
-                $error = '复制文件失败: ' . $item->getPathname();
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
-function getGithubRepoInfo($repo, &$error = null) {
-    $apiUrl = "https://api.github.com/repos/{$repo}";
-
-    if (function_exists('curl_init')) {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $apiUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'AI-Code-Debug-System/1.0');
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
-
-        if ($response === false || $httpCode !== 200) {
-            $error = $curlError ? $curlError : "GitHub API 返回 HTTP {$httpCode}";
-            return false;
-        }
-    } else {
-        $context = stream_context_create([
-            'http' => [
-                'method' => 'GET',
-                'header' => 'User-Agent: AI-Code-Debug-System/1.0\r\n',
-                'timeout' => 30,
-            ]
-        ]);
-        $response = @file_get_contents($apiUrl, false, $context);
-        if ($response === false) {
-            $error = '无法访问 GitHub API';
-            return false;
-        }
-    }
-
-    $repoInfo = json_decode($response, true);
-    if (!is_array($repoInfo) || isset($repoInfo['message'])) {
-        $message = is_array($repoInfo) && isset($repoInfo['message']) ? $repoInfo['message'] : '无法解析 GitHub API 返回内容';
-        $error = 'GitHub 仓库检查失败：' . $message;
-        return false;
-    }
-
-    return $repoInfo;
-}
-
-function autoUpdateFromGithub($repo, $branch = 'main') {
-    $rootPath = __DIR__;
-    $tmpDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'aidebug_update_' . time();
-    $zipPath = $tmpDir . DIRECTORY_SEPARATOR . 'update.zip';
-    $extractDir = $tmpDir . DIRECTORY_SEPARATOR . 'package';
-
-    if (!mkdir($tmpDir, 0755, true) && !is_dir($tmpDir)) {
-        return ['success' => false, 'message' => '无法创建临时目录'];
-    }
-
-    $repoInfo = getGithubRepoInfo($repo, $error);
-    if ($repoInfo === false) {
-        return ['success' => false, 'message' => $error];
-    }
-
-    if (empty($branch) && isset($repoInfo['default_branch'])) {
-        $branch = $repoInfo['default_branch'];
-    }
-
-    $zipUrl = "https://codeload.github.com/{$repo}/zip/{$branch}";
-    if (!downloadFile($zipUrl, $zipPath, $error)) {
-        return ['success' => false, 'message' => '下载更新包失败: ' . $error . '，请检查仓库地址和分支设置'];
-    }
-
-    if (!extractZipFile($zipPath, $extractDir, $error)) {
-        return ['success' => false, 'message' => '解压更新包失败: ' . $error];
-    }
-
-    $entries = scandir($extractDir);
-    $sourceDir = '';
-    foreach ($entries as $entry) {
-        if ($entry === '.' || $entry === '..') {
-            continue;
-        }
-        $path = $extractDir . DIRECTORY_SEPARATOR . $entry;
-        if (is_dir($path)) {
-            $sourceDir = $path;
-            break;
-        }
-    }
-
-    if (!$sourceDir) {
+    // 查找解压后的目录
+    $extracted_dirs = glob("$update_dir/*", GLOB_ONLYDIR);
+    if (empty($extracted_dirs)) {
+        array_map('unlink', glob("$update_dir/*"));
+        rmdir($update_dir);
         return ['success' => false, 'message' => '更新包结构异常'];
     }
 
-    $exclude = [
-        'data',
-        '.git',
+    $source_dir = $extracted_dirs[0];
+
+    // 备份需要保留的文件
+    $backup_files = [
+        'data/users.json',
+        'data/config.json',
+        'data/records.json',
+        'data/redeem_codes.json',
         'config.php'
     ];
 
-    if (!copyDirectory($sourceDir, $rootPath, $exclude, $error)) {
-        return ['success' => false, 'message' => '复制更新文件失败: ' . $error];
+    $temp_backup = 'data/backup_temp';
+    if (!is_dir($temp_backup)) mkdir($temp_backup);
+
+    foreach ($backup_files as $file) {
+        if (file_exists($file)) {
+            copy($file, $temp_backup . '/' . basename($file));
+        }
     }
 
-    return ['success' => true, 'message' => '更新完成，请检查页面是否正常。'];
+    // 更新文件（排除 data 目录和 config.php）
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($source_dir, RecursiveDirectoryIterator::SKIP_DOTS));
+    $updated_files = 0;
+
+    foreach ($iterator as $file) {
+        $relative_path = str_replace($source_dir . '/', '', $file->getPathname());
+
+        // 跳过 data 目录和 config.php
+        if (strpos($relative_path, 'data/') === 0 || $relative_path === 'config.php') {
+            continue;
+        }
+
+        $target_path = $relative_path;
+        $target_dir = dirname($target_path);
+
+        if (!is_dir($target_dir)) {
+            mkdir($target_dir, 0755, true);
+        }
+
+        copy($file->getPathname(), $target_path);
+        $updated_files++;
+    }
+
+    // 恢复备份的文件
+    foreach ($backup_files as $file) {
+        $backup_path = $temp_backup . '/' . basename($file);
+        if (file_exists($backup_path)) {
+            copy($backup_path, $file);
+        }
+    }
+
+    // 清理临时文件
+    array_map('unlink', glob("$temp_backup/*"));
+    rmdir($temp_backup);
+
+    // 删除临时更新目录
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($update_dir, RecursiveDirectoryIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
+    foreach ($iterator as $file) {
+        if ($file->isDir()) {
+            rmdir($file->getPathname());
+        } else {
+            unlink($file->getPathname());
+        }
+    }
+    rmdir($update_dir);
+
+    // 保存新版本信息
+    file_put_contents($version_file, $latest_commit);
+
+    return [
+        'success' => true,
+        'message' => "更新成功！更新了 {$updated_files} 个文件。最新提交：{$commit_message}"
+    ];
 }
-?>
-=======
-?>
->>>>>>> e196356d439b1cb692291e3118e9ce002ab17fb6
