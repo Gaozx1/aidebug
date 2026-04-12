@@ -1,0 +1,101 @@
+{
+    "REDEEM-2E69A8": {
+        "code": "REDEEM-2E69A8",
+        "points": 1000,
+        "created_by": "admin",
+        "created_at": "2026-04-10 08:08:43",
+        "used": true,
+        "used_by": "admin",
+        "used_at": "2026-04-10 21:56:51"
+    },
+    "REDEEM-C4CAE5": {
+        "code": "REDEEM-C4CAE5",
+        "points": 1000,
+        "created_by": "admin",
+        "created_at": "2026-04-10 08:08:43",
+        "used": false,
+        "used_by": null,
+        "used_at": null
+    },
+    "REDEEM-537A50": {
+        "code": "REDEEM-537A50",
+        "points": 1000,
+        "created_by": "admin",
+        "created_at": "2026-04-10 08:08:43",
+        "used": false,
+        "used_by": null,
+        "used_at": null
+    },
+    "REDEEM-5AD8A8": {
+        "code": "REDEEM-5AD8A8",
+        "points": 1000,
+        "created_by": "admin",
+        "created_at": "2026-04-10 08:08:43",
+        "used": false,
+        "used_by": null,
+        "used_at": null
+    },
+    "REDEEM-31F9E7": {
+        "code": "REDEEM-31F9E7",
+        "points": 1000,
+        "created_by": "admin",
+        "created_at": "2026-04-10 08:08:43",
+        "used": false,
+        "used_by": null,
+        "used_at": null
+    },
+    "REDEEM-2176FC": {
+        "code": "REDEEM-2176FC",
+        "points": 1000,
+        "created_by": "admin",
+        "created_at": "2026-04-10 08:08:43",
+        "used": false,
+        "used_by": null,
+        "used_at": null
+    },
+    "REDEEM-0BE65F": {
+        "code": "REDEEM-0BE65F",
+        "points": 1000,
+        "created_by": "admin",
+        "created_at": "2026-04-10 08:08:43",
+        "used": false,
+        "used_by": null,
+        "used_at": null
+    },
+    "REDEEM-BDF93C": {
+        "code": "REDEEM-BDF93C",
+        "points": 1000,
+        "created_by": "admin",
+        "created_at": "2026-04-10 08:08:43",
+        "used": false,
+        "used_by": null,
+        "used_at": null
+    },
+    "REDEEM-4D1125": {
+        "code": "REDEEM-4D1125",
+        "points": 1000,
+        "created_by": "admin",
+        "created_at": "2026-04-10 08:08:43",
+        "used": false,
+        "used_by": null,
+        "used_at": null
+    },
+    "REDEEM-61E648": {
+        "code": "REDEEM-61E648",
+        "points": 1000,
+        "created_by": "admin",
+        "created_at": "2026-04-10 08:08:43",
+        "used": true,
+        "used_by": "LPEY_",
+        "used_at": "2026-04-11 11:32:25"
+    },
+    "REDEEM-0873D5": {
+        "code": "REDEEM-0873D5",
+        "points": 60,
+        "created_by": "admin",
+        "created_at": "2026-04-11 11:53:43",
+        "used": true,
+        "used_by": "LPEY_",
+        "used_at": "2026-04-11 11:57:11"
+    }
+}

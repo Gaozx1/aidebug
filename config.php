@@ -74,6 +74,7 @@ function initDataFiles() {
         'smtp_from_name' => ['config_value' => 'AI代码调试系统', 'description' => '发件人名称'],
         
         // 更新配置
+        'update_enabled' => ['config_value' => '0', 'description' => '启用自动更新（0=关闭，1=开启）'],
         'update_repo' => ['config_value' => 'Gaozx1/aidebug', 'description' => '自动更新仓库地址，格式 user/repo'],
         'update_branch' => ['config_value' => 'main', 'description' => '自动更新分支名称'],
         
@@ -82,7 +83,12 @@ function initDataFiles() {
         'announcement_text' => ['config_value' => '', 'description' => '系统公告内容'],
         
         // Markdown支持配置
-        'markdown_enabled' => ['config_value' => '1', 'description' => '启用Markdown支持（0=关闭，1=开启）']
+        'markdown_enabled' => ['config_value' => '1', 'description' => '启用Markdown支持（0=关闭，1=开启）'],
+        
+        // GitHub OAuth配置
+        'github_client_id' => ['config_value' => '', 'description' => 'GitHub Client ID'],
+        'github_client_secret' => ['config_value' => '', 'description' => 'GitHub Client Secret'],
+        'github_redirect_uri' => ['config_value' => '', 'description' => 'GitHub Redirect URI']
     ];
     
     if (!file_exists(CONFIG_FILE)) {
@@ -105,7 +111,7 @@ function verifyPassword($password, $hash) {
 
 // 保存数据到JSON文件（简化版本，避免加密问题）
 function saveEncryptedData($filename, $data) {
-    $jsonData = json_encode($data, JSON_PRETTY_PRINT);
+    $jsonData = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     return file_put_contents($filename, $jsonData) !== false;
 }
 
@@ -152,6 +158,37 @@ function getConfig() {
 // 保存系统配置
 function saveConfig($config) {
     return saveEncryptedData(CONFIG_FILE, $config);
+}
+
+/**
+ * 更新单个或多个配置项的值
+ */
+function updateConfigValue($key, $value) {
+    $config = getConfig();
+    
+    if (!is_array($config)) {
+        $config = [];
+    }
+
+    // 如果 $key 是数组，处理批量更新
+    if (is_array($key)) {
+        foreach ($key as $k => $v) {
+            if (isset($config[$k]) && is_array($config[$k])) {
+                $config[$k]['config_value'] = $v;
+            } else {
+                $config[$k] = ['config_value' => $v, 'description' => ''];
+            }
+        }
+    } else {
+        // 处理单个更新
+        if (isset($config[$key]) && is_array($config[$key])) {
+            $config[$key]['config_value'] = $value;
+        } else {
+            $config[$key] = ['config_value' => $value, 'description' => ''];
+        }
+    }
+    
+    return saveConfig($config);
 }
 
 // 辅助函数：安全获取配置值（支持新旧结构）
@@ -591,10 +628,10 @@ function markdownToHtml($markdown) {
 // 调用AI分析代码
 function callAIAnalysis($code, $description) {
     $config = getConfig();
-    
+
     // 安全获取配置值
     $api_key = getConfigValue($config, 'api_key');
-    
+
     // 如果没有配置API密钥，使用模拟响应
     if (empty($api_key)) {
         $responses = [
@@ -606,15 +643,60 @@ function callAIAnalysis($code, $description) {
         ];
         return $responses[array_rand($responses)];
     }
-    
+
+    // 检查代码长度，如果太长则分批处理
+    $max_code_length = 8000; // 单个批次最大字符数
+    if (strlen($code) > $max_code_length) {
+        return callAIAnalysisBatched($code, $description, $config);
+    }
+
     // 使用真实的AI API
     return callAIAPI($code, $description, $config);
+}
+
+// 分批分析长代码
+function callAIAnalysisBatched($code, $description, $config) {
+    $max_code_length = 8000;
+    $code_parts = str_split($code, $max_code_length);
+    $total_parts = count($code_parts);
+    $analysis_results = [];
+
+    foreach ($code_parts as $index => $part) {
+        $part_description = $description . "\n\n这是代码的第" . ($index + 1) . "/" . $total_parts . "部分：\n```\n" . $part . "\n```";
+
+        $result = callAIAPI($part, $part_description, $config);
+
+        // 如果是错误消息，直接返回
+        if (strpos($result, 'API') === 0 || strpos($result, 'cURL') === 0 || strpos($result, '尝试') === 0) {
+            return $result;
+        }
+
+        $analysis_results[] = "=== 代码部分 " . ($index + 1) . "/" . $total_parts . " 分析 ===\n" . $result;
+    }
+
+    // 合并所有分析结果
+    $final_analysis = "由于代码较长，已分" . $total_parts . "批进行分析：\n\n" . implode("\n\n", $analysis_results);
+
+    // 如果总结果太长，进行总结
+    if (strlen($final_analysis) > 12000) {
+        $summary_prompt = "请对以下分析结果进行总结和整合：\n\n" . substr($final_analysis, 0, 8000) . "\n\n[内容已截断]";
+        $summary = callAIAPI("", $summary_prompt, $config);
+        if (strpos($summary, 'API') !== 0 && strpos($summary, 'cURL') !== 0) {
+            $final_analysis = "=== 综合分析总结 ===\n" . $summary . "\n\n=== 详细分析 ===\n" . substr($final_analysis, 0, 4000) . "\n\n[详细内容已截断，建议分段查看代码]";
+        }
+    }
+
+    return $final_analysis;
 }
 function callAIAPI($code, $description, $config) {
     // 使用更安全的方式获取配置
     $api_key = getConfigValue($config, 'api_key');
     $api_base_url = getConfigValue($config, 'api_base_url');
     $model = getConfigValue($config, 'api_model');
+    $timeout = getConfigValue($config, 'api_timeout') ?: 60;
+    $retry_count = getConfigValue($config, 'api_retry_count') ?: 3;
+    $max_tokens = getConfigValue($config, 'api_max_tokens') ?: 1000;
+    $temperature = getConfigValue($config, 'api_temperature') ?: 0.7;
     
     if (empty($api_key) || empty($api_base_url)) {
         return "API配置不完整，请检查管理后台设置";
@@ -637,8 +719,8 @@ function callAIAPI($code, $description, $config) {
                 'content' => "请分析以下代码：\n\n代码：\n```\n{$code}\n```\n\n问题描述：{$description}"
             ]
         ],
-        'max_tokens' => 1000,
-        'temperature' => 0.7
+        'max_tokens' => (int)$max_tokens,
+        'temperature' => (float)$temperature
     ];
     
     // 准备HTTP头
@@ -647,59 +729,125 @@ function callAIAPI($code, $description, $config) {
         'Authorization: Bearer ' . $api_key
     ];
     
-    // 使用优化后的cURL配置
-    $ch = curl_init();
+    // 重试机制 - 增强版
+    $attempts = 0;
+    $max_attempts = $retry_count;
+    $last_error = '';
+    $use_fallback_ssl = false;
     
-    // 基础配置
-    curl_setopt($ch, CURLOPT_URL, $api_url);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    
-    // 优化超时设置（基于测试结果调整）
-    curl_setopt($ch, CURLOPT_TIMEOUT, 60); // 总超时60秒
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15); // 连接超时15秒
-    
-    // SSL配置
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-    
-    // 网络优化配置
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-    curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
-    curl_setopt($ch, CURLOPT_USERAGENT, 'AI-Code-Debug-System/1.0');
-    curl_setopt($ch, CURLOPT_ENCODING, '');
-    
-    $response = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
-    
-    // 安全关闭cURL
-    if (function_exists('curl_close')) {
-        curl_close($ch);
+    while ($attempts < $max_attempts) {
+        $attempts++;
+        
+        // 使用优化后的cURL配置
+        $ch = curl_init();
+        
+        // 基础配置 - 非流式传输
+        curl_setopt($ch, CURLOPT_URL, $api_url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FAILONERROR, false); // 不因HTTP错误码失败
+        
+        // 明确设置为非流式传输
+        curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+        curl_setopt($ch, CURLOPT_TRANSFER_ENCODING, false); // 禁用传输编码
+        curl_setopt($ch, CURLOPT_HTTP_CONTENT_DECODING, true); // 启用内容解码
+        
+        // 优化超时设置
+        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
+        
+        // SSL配置 - 根据重试次数调整策略
+        if ($use_fallback_ssl || $attempts > 2) {
+            // 备用SSL配置 - 更宽松的设置
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+            curl_setopt($ch, CURLOPT_SSLVERSION, CURL_SSLVERSION_DEFAULT);
+        } else {
+            // 主要SSL配置 - 严格但稳定的设置
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+            curl_setopt($ch, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2 | CURL_SSLVERSION_TLSv1_3);
+            curl_setopt($ch, CURLOPT_SSL_CIPHER_LIST, 'ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384');
+            curl_setopt($ch, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NO_REVOKE);
+        }
+        
+        // 连接稳定性优化
+        curl_setopt($ch, CURLOPT_TCP_NODELAY, true); // 禁用Nagle算法
+        curl_setopt($ch, CURLOPT_TCP_KEEPALIVE, 1);
+        curl_setopt($ch, CURLOPT_TCP_KEEPIDLE, 60);
+        curl_setopt($ch, CURLOPT_TCP_KEEPINTVL, 60);
+        
+        // 网络优化配置
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'AI-Code-Debug-System/1.0');
+        curl_setopt($ch, CURLOPT_ENCODING, '');
+        
+        // 增强缓冲和传输设置
+        curl_setopt($ch, CURLOPT_BUFFERSIZE, 128000); // 128KB缓冲区
+        curl_setopt($ch, CURLOPT_LOW_SPEED_LIMIT, 1); // 最低速度1字节/秒
+        curl_setopt($ch, CURLOPT_LOW_SPEED_TIME, 30); // 30秒内如果低于最低速度则失败
+        curl_setopt($ch, CURLOPT_MAX_RECV_SPEED_LARGE, 0); // 不限制接收速度
+        
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        $errno = curl_errno($ch);
+        
+        // 安全关闭cURL
+        if (function_exists('curl_close') && version_compare(PHP_VERSION, '8.0', '<')) {
+            curl_close($ch);
+        }
+        
+        // 成功响应
+        if ($response !== false && $http_code === 200) {
+            // 解析响应数据
+            $response_data = json_decode($response, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return "API响应解析失败: " . json_last_error_msg();
+            }
+            
+            if (!isset($response_data['choices'][0]['message']['content'])) {
+                return "API响应格式不正确";
+            }
+            
+            $content = trim($response_data['choices'][0]['message']['content']);
+            
+            // 检查是否因长度限制被截断
+            if (isset($response_data['choices'][0]['finish_reason']) && $response_data['choices'][0]['finish_reason'] === 'length') {
+                $content .= "\n\n[注意：响应因长度限制被截断，建议增加max_tokens设置或简化问题描述]";
+            }
+            
+            return $content;
+        }
+        
+        // 记录错误
+        $last_error = "尝试 {$attempts}/{$max_attempts} 失败: ";
+        if ($response === false) {
+            $last_error .= "cURL错误 ({$errno}): {$error}";
+            
+            // 如果是SSL相关错误，在下次重试时使用备用SSL配置
+            if (in_array($errno, [35, 51, 53, 54, 55, 56, 58, 59, 60, 64, 66, 77, 80, 81, 82, 83, 90, 91])) {
+                $use_fallback_ssl = true;
+                $last_error .= " [将使用备用SSL配置重试]";
+            }
+        } else {
+            $last_error .= "HTTP {$http_code}";
+        }
+        
+        // 如果是最后一次尝试，返回错误
+        if ($attempts >= $max_attempts) {
+            return $last_error;
+        }
+        
+        // 等待重试 (指数退避)
+        $wait_time = min(pow(2, $attempts - 1), 5); // 最多等待5秒
+        sleep($wait_time);
     }
     
-    // 错误处理
-    if ($response === false) {
-        return "API请求失败: " . $error;
-    }
-    
-    if ($http_code !== 200) {
-        return "API返回错误: HTTP {$http_code}";
-    }
-    
-    // 解析响应数据
-    $response_data = json_decode($response, true);
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        return "API响应解析失败";
-    }
-    
-    if (!isset($response_data['choices'][0]['message']['content'])) {
-        return "API响应格式不正确";
-    }
-    
-    return trim($response_data['choices'][0]['message']['content']);
+    return $last_error;
 }
 
 
@@ -723,18 +871,75 @@ function updateUserPoints($username, $points) {
 }
 
 function canAffordAnalysis($username) {
-    return getUserPoints($username) >= 30;
+    $config = getConfig();
+    $analysis_cost = isset($config['analysis_cost']) ? (int)$config['analysis_cost'] : 30;
+    return getUserPoints($username) >= $analysis_cost;
 }
 
 function deductAnalysisPoints($username) {
+    $config = getConfig();
+    $analysis_cost = isset($config['analysis_cost']) ? (int)$config['analysis_cost'] : 30;
+    
     $current_points = getUserPoints($username);
-    if ($current_points < 30) {
+    if ($current_points < $analysis_cost) {
         return false;
     }
-    return updateUserPoints($username, $current_points - 30);
+    return updateUserPoints($username, $current_points - $analysis_cost);
+}
+
+// 计算代码行数
+function calculateCodeLines($code) {
+    $lines = explode("\n", $code);
+    $non_empty_lines = array_filter($lines, function($line) {
+        return trim($line) !== '';
+    });
+    return count($non_empty_lines);
+}
+
+// 根据代码行数计算所需积分
+function calculateRequiredPoints($code_lines) {
+    $config = getConfig();
+    $base_points = isset($config['analysis_cost']) ? (int)$config['analysis_cost'] : 30; // 基础积分
+    $free_lines = 200; // 免费行数
+    $extra_charge_lines = 100; // 额外收费间隔
+    $extra_charge_points = 10; // 额外收费积分
+
+    if ($code_lines <= $free_lines) {
+        return $base_points;
+    }
+
+    // 计算超出部分
+    $extra_lines = $code_lines - $free_lines;
+    $extra_charges = ceil($extra_lines / $extra_charge_lines);
+    $total_points = $base_points + ($extra_charges * $extra_charge_points);
+
+    return $total_points;
+}
+
+// 检查用户是否有足够的积分支付代码分析费用
+function canAffordAnalysisByCode($username, $code) {
+    $code_lines = calculateCodeLines($code);
+    $required_points = calculateRequiredPoints($code_lines);
+    return getUserPoints($username) >= $required_points;
+}
+
+// 根据代码长度扣除相应积分
+function deductAnalysisPointsByCode($username, $code) {
+    $code_lines = calculateCodeLines($code);
+    $required_points = calculateRequiredPoints($code_lines);
+    $current_points = getUserPoints($username);
+
+    if ($current_points < $required_points) {
+        return false;
+    }
+
+    return updateUserPoints($username, $current_points - $required_points);
 }
 
 function addSigninPoints($username) {
+    $config = getConfig();
+    $signin_reward = isset($config['signin_reward']) ? (int)$config['signin_reward'] : 50;
+    
     $users = getUsers();
     if (!isset($users[$username])) {
         return false;
@@ -747,7 +952,7 @@ function addSigninPoints($username) {
     }
     
     $current_points = getUserPoints($username);
-    $users[$username]['points'] = $current_points + 50;
+    $users[$username]['points'] = $current_points + $signin_reward;
     $users[$username]['last_signin'] = $today;
     
     return saveUsers($users);

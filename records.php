@@ -52,7 +52,6 @@ $recentRecords = array_slice($userRecords, 0, 5);
       tex: {
         inlineMath: [['$', '$'], ['\\(', '\\)']],
         displayMath: [['$$', '$$'], ['\\[', '\\]']],
-        processEscapes: true,
         processEnvironments: true,
         macros: {
           "RR": "\\mathbb{R}",
@@ -80,7 +79,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
       }
     };
     </script>
-    <script id="MathJax-script" src="mathjax/es5/tex-mml-chtml.js"></script>
+    <script id="MathJax-script" async src="mathjax/es5/tex-mml-chtml.js"></script>
     <style>
         :root {
             --primary-color: #007bff;

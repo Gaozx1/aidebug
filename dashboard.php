@@ -11,24 +11,31 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// 处理代码调试请求
+// 处理代码调试请求 - 客户端API调用版本
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_code'])) {
+    header('Content-Type: application/json');
     $title = trim($_POST['title']);
     $problem = trim($_POST['problem']);
     $code = trim($_POST['code']);
     $evaluation_result = trim($_POST['evaluation_result']);
     
     if (empty($title) || empty($problem) || empty($code) || empty($evaluation_result)) {
-        setMessage('请填写所有必填字段', 'error');
-    } else {
+                echo json_encode(['success' => false, 'message' => '请填写所有必填字段']);
+                exit;
+            } else {
+        // 计算代码行数和所需积分
+        $code_lines = calculateCodeLines($code);
+        $required_points = calculateRequiredPoints($code_lines);
+
         // 检查积分是否足够
-        if (!canAffordAnalysis($_SESSION['user_id'])) {
-            setMessage('积分不足，分析一次需要30积分。请先签到获取积分。', 'error');
-        } else {
+        if (!canAffordAnalysisByCode($_SESSION['user_id'], $code)) {
+                    echo json_encode(['success' => false, 'message' => "积分不足，分析{$code_lines}行代码需要{$required_points}积分。请先签到获取积分。"]);
+                    exit;
+            } else {
             $records = getRecords();
             $users = getUsers();
             
-            // 创建新记录
+            // 创建新记录（状态为pending，等待客户端API调用完成）
             $record_id = generateId();
             $newRecord = [
                 'id' => $record_id,
@@ -38,38 +45,114 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_code'])) {
                 'code' => $code,
                 'evaluation_result' => $evaluation_result,
                 'ai_response' => '',
-                'status' => 'pending',
+                'status' => 'pending', // 等待客户端API调用
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s')
             ];
             
-            // 扣除积分
-            if (deductAnalysisPoints($_SESSION['user_id'])) {
-                // 调用AI分析
-                $ai_response = callAIAnalysis($code, $problem);
-                $newRecord['ai_response'] = $ai_response;
-                $newRecord['status'] = 'completed';
-                $newRecord['updated_at'] = date('Y-m-d H:i:s');
+            // 保存记录（不扣积分，等待客户端完成）
+            $records[$record_id] = $newRecord;
+            
+            if (saveRecords($records)) {
+                            // 返回记录ID给客户端，让客户端进行API调用
+                            $_SESSION['pending_record_id'] = $record_id;
+                            $_SESSION['pending_code_lines'] = $code_lines;
+                            $_SESSION['pending_required_points'] = $required_points;
                 
-                // 保存记录
-                $records[$record_id] = $newRecord;
-                
-                if (saveRecords($records)) {
-                    setMessage('代码分析完成！已扣除30积分。', 'success');
-                    // 跳转到记录详情页面
-                    header('Location: records.php?id=' . $record_id);
-                    exit;
-                } else {
-                    // 保存失败，返还积分
-                    $current_points = getUserPoints($_SESSION['user_id']);
-                    updateUserPoints($_SESSION['user_id'], $current_points + 30);
-                    setMessage('提交失败，积分已返还，请稍后重试', 'error');
-                }
-            } else {
-                setMessage('积分扣除失败，请稍后重试', 'error');
+                            echo json_encode(['success' => true, 'record_id' => $record_id]);
+                            exit;
+                        } else {
+                echo json_encode(['success' => false, 'message' => '保存记录失败，请稍后重试']);
+                exit;
             }
         }
     }
+}
+
+// 提供API配置给客户端（不包含完整的API密钥）
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_api_config'])) {
+    header('Content-Type: application/json');
+    $config = getConfig();
+    $api_key = getConfigValue($config, 'api_key');
+    
+    if (empty($api_key)) {
+        echo json_encode(['success' => false, 'message' => 'API密钥未配置']);
+        exit;
+    }
+    
+    // 只返回API密钥的前几位和后几位，用于验证
+    $key_length = strlen($api_key);
+    $masked_key = substr($api_key, 0, 8) . '...' . substr($api_key, -4);
+    
+    echo json_encode([
+        'success' => true,
+        'api_key' => $api_key, // 实际返回完整密钥用于客户端调用
+        'api_base_url' => getConfigValue($config, 'api_base_url') ?: 'https://api.openai.com/v1',
+        'api_model' => getConfigValue($config, 'api_model') ?: 'gpt-3.5-turbo',
+        'masked_key' => $masked_key,
+        'key_length' => $key_length
+    ]);
+    exit;
+}
+
+// 处理客户端上传的AI分析结果
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_ai_result'])) {
+    header('Content-Type: application/json');
+    $record_id = trim($_POST['record_id']);
+    $ai_response = trim($_POST['ai_response']);
+    
+    if (empty($record_id) || empty($ai_response)) {
+        echo json_encode(['success' => false, 'message' => '缺少必要参数']);
+        exit;
+    }
+    
+    $records = getRecords();
+    
+    if (!isset($records[$record_id]) || $records[$record_id]['user_id'] !== $_SESSION['user_id']) {
+        echo json_encode(['success' => false, 'message' => '记录不存在或无权访问']);
+        exit;
+    }
+    
+    // 检查AI响应是否包含错误
+    $error_keywords = ['API请求失败', 'cURL错误', 'HTTP 错误', '响应格式错误'];
+    $is_error = false;
+    foreach ($error_keywords as $keyword) {
+        if (strpos($ai_response, $keyword) !== false) {
+            $is_error = true;
+            break;
+        }
+    }
+    
+    if ($is_error || empty($ai_response)) {
+        // AI分析失败，删除记录，不扣积分
+        unset($records[$record_id]);
+        saveRecords($records);
+        echo json_encode(['success' => false, 'message' => 'AI分析失败：' . ($ai_response ?: '无响应')]);
+        exit;
+    }
+    
+    // AI分析成功，更新记录并扣除积分
+    $code_lines = calculateCodeLines($records[$record_id]['code']);
+    $required_points = calculateRequiredPoints($code_lines);
+    
+    if (deductAnalysisPointsByCode($_SESSION['user_id'], $records[$record_id]['code'])) {
+        $records[$record_id]['ai_response'] = $ai_response;
+        $records[$record_id]['status'] = 'completed';
+        $records[$record_id]['updated_at'] = date('Y-m-d H:i:s');
+        
+        if (saveRecords($records)) {
+            echo json_encode(['success' => true, 'message' => "代码分析完成！已扣除{$required_points}积分（{$code_lines}行代码）。", 'record_id' => $record_id]);
+        } else {
+            // 记录保存失败，返还积分
+            $current_points = getUserPoints($_SESSION['user_id']);
+            updateUserPoints($_SESSION['user_id'], $current_points + $required_points);
+            echo json_encode(['success' => false, 'message' => '保存记录失败，积分已返还，请稍后重试']);
+        }
+    } else {
+        echo json_encode(['success' => false, 'message' => '积分扣除过程中出现异常，请稍后重试']);
+        exit;
+    }
+    exit;
 }
 
 // 获取用户的调试记录
@@ -102,7 +185,6 @@ $recentRecords = array_slice($userRecords, 0, 5);
       tex: {
         inlineMath: [['$', '$'], ['\\(', '\\)']],
         displayMath: [['$$', '$$'], ['\\[', '\\]']],
-        processEscapes: true,
         processEnvironments: true,
         macros: {
           "RR": "\\mathbb{R}",
@@ -130,7 +212,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
       }
     };
     </script>
-    <script id="MathJax-script" src="mathjax/es5/tex-mml-chtml.js"></script>
+    <script id="MathJax-script" async src="mathjax/es5/tex-mml-chtml.js"></script>
     <style>
         :root {
             --primary-color: #007bff;
@@ -700,7 +782,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
         
         <div class="debug-form" id="debug-form">
             <h2>提交代码调试</h2>
-            <form method="POST" action="">
+            <form method="POST" action="" id="debug-form">
                 <div class="form-group">
                     <label for="title">问题标题 <span style="color: red;">*</span></label>
                     <input type="text" id="title" name="title" placeholder="请输入问题标题" required>
@@ -721,16 +803,76 @@ $recentRecords = array_slice($userRecords, 0, 5);
                     <textarea id="evaluation_result" name="evaluation_result" placeholder="请描述代码的评测结果或测试用例运行情况" required></textarea>
                 </div>
                 
-                <div class="cost-info">
-                    💰 每次分析消耗 <strong>30 积分</strong>，当前积分: <strong><?php echo getUserPoints($_SESSION['user_id']); ?></strong>
-                    <?php if (!canAffordAnalysis($_SESSION['user_id'])): ?>
-                        <br><span style="color: #dc3545;">积分不足！请先签到获取积分。</span>
-                    <?php endif; ?>
+                <!-- API配置信息（从服务器获取） -->
+                <div class="form-group" id="api-config-section">
+                    <label>API配置信息</label>
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 4px solid #007bff;">
+                        <small style="color: #666;">
+                            <strong>使用系统配置的API：</strong><br>
+                            API密钥：<?php echo getConfigValue(getConfig(), 'api_key') ? '已配置' : '未配置'; ?><br>
+                            基础URL：<?php echo getConfigValue(getConfig(), 'api_base_url') ?: 'https://api.openai.com/v1'; ?><br>
+                            模型：<?php echo getConfigValue(getConfig(), 'api_model') ?: 'gpt-3.5-turbo'; ?>
+                        </small>
+                    </div>
+                    <small style="color: #666; font-size: 12px;">API调用将在客户端进行，使用系统配置的密钥</small>
                 </div>
                 
-                <button type="submit" name="debug_code" class="btn btn-primary" <?php echo !canAffordAnalysis($_SESSION['user_id']) ? 'disabled' : ''; ?>>
-                    <?php echo canAffordAnalysis($_SESSION['user_id']) ? '提交分析' : '积分不足'; ?>
+                <div class="cost-info">
+                    💰 分析费用: <strong id="required-points">30</strong> 积分 (<span id="code-lines">0</span> 行代码)
+                    <br>当前积分: <strong><?php echo getUserPoints($_SESSION['user_id']); ?></strong>
+                    <div id="insufficient-warning" style="color: #dc3545; display: none;">积分不足！请先签到获取积分。</div>
+                </div>
+
+                <script>
+                function calculateCost() {
+                    const code = document.getElementById('code').value;
+                    const lines = code.split('\n').filter(line => line.trim() !== '').length;
+                    const basePoints = 30;
+                    const freeLines = 200;
+                    const extraChargeLines = 100;
+                    const extraChargePoints = 10;
+
+                    let requiredPoints = basePoints;
+                    if (lines > freeLines) {
+                        const extraLines = lines - freeLines;
+                        const extraCharges = Math.ceil(extraLines / extraChargeLines);
+                        requiredPoints += extraCharges * extraChargePoints;
+                    }
+
+                    document.getElementById('code-lines').textContent = lines;
+                    document.getElementById('required-points').textContent = requiredPoints;
+
+                    const currentPoints = <?php echo getUserPoints($_SESSION['user_id']); ?>;
+                    const warning = document.getElementById('insufficient-warning');
+                    const submitBtn = document.getElementById('submit-btn');
+
+                    if (currentPoints >= requiredPoints) {
+                        warning.style.display = 'none';
+                        submitBtn.disabled = false;
+                    } else {
+                        warning.style.display = 'block';
+                        submitBtn.disabled = true;
+                    }
+                }
+
+                // 监听代码输入变化
+                document.getElementById('code').addEventListener('input', calculateCost);
+                // 页面加载时计算一次
+                calculateCost();
+                </script>
+                
+                <button type="button" class="btn btn-primary" id="submit-btn" onclick="submitAnalysis()">
+                    <?php echo canAffordAnalysis($_SESSION['user_id']) ? '提交分析（本地API调用）' : '积分不足'; ?>
                 </button>
+                
+                <!-- 进度显示区域 -->
+                <div id="progress-section" style="display: none; margin-top: 20px;">
+                    <div class="message info" id="progress-message">正在创建记录...</div>
+                    <div class="progress-bar" style="background: #f0f0f0; height: 10px; border-radius: 5px; margin: 10px 0;">
+                        <div id="progress-fill" style="background: #007bff; height: 100%; width: 0%; border-radius: 5px; transition: width 0.3s;"></div>
+                    </div>
+                    <div id="progress-text">0%</div>
+                </div>
             </form>
         </div>
         
@@ -806,9 +948,206 @@ function calculateSum($numbers) {
             });
         }
         
+        // 客户端API调用功能
+        async function submitAnalysis() {
+            const title = document.getElementById('title').value;
+            const problem = document.getElementById('problem').value;
+            const code = document.getElementById('code').value;
+            const evaluationResult = document.getElementById('evaluation_result').value;
+            
+            // 验证输入
+            if (!title || !problem || !code || !evaluationResult) {
+                alert('请填写所有必填字段');
+                return;
+            }
+            
+            // 显示进度
+            showProgress('正在获取API配置...', 0);
+            
+            try {
+                // 1. 从服务器获取API配置
+                const configResponse = await fetch('dashboard.php?get_api_config=1');
+                const configResult = await configResponse.json();
+                
+                if (!configResult.success) {
+                    throw new Error(configResult.message);
+                }
+                
+                const apiKey = configResult.api_key;
+                const apiBaseUrl = configResult.api_base_url;
+                const apiModel = configResult.api_model;
+                
+                showProgress('API配置获取成功，正在创建记录...', 10);
+                
+                // 2. 创建记录（不扣积分）
+                const formData = new FormData();
+                formData.append('debug_code', '1');
+                formData.append('title', title);
+                formData.append('problem', problem);
+                formData.append('code', code);
+                formData.append('evaluation_result', evaluationResult);
+                
+                const createResponse = await fetch('dashboard.php', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                
+                if (!createResponse.ok) {
+                    throw new Error('创建记录失败');
+                }
+                
+                // 获取服务器返回的record_id
+                const createResult = await createResponse.json();
+                
+                if (!createResult.success) {
+                    throw new Error(createResult.message);
+                }
+                
+                const recordId = createResult.record_id;
+                
+                if (!recordId) {
+                    throw new Error('无法获取记录ID，请重新提交');
+                }
+                
+                showProgress('记录创建成功，正在调用AI API...', 30);
+                
+                // 3. 客户端调用AI API
+                const aiResponse = await callAIApiLocally(code, problem, evaluationResult, apiKey, apiBaseUrl, apiModel);
+                
+                showProgress('AI分析完成，正在上传结果...', 80);
+                
+                // 4. 上传AI分析结果到服务器
+                const uploadData = new FormData();
+                uploadData.append('upload_ai_result', '1');
+                uploadData.append('record_id', recordId);
+                uploadData.append('ai_response', aiResponse);
+                
+                const uploadResponse = await fetch('dashboard.php', {
+                    method: 'POST',
+                    body: uploadData
+                });
+                
+                // 检查响应内容类型，确保是JSON
+                const contentType = uploadResponse.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const responseText = await uploadResponse.text();
+                    
+                    // 检查是否是重定向到登录页面
+                    if (responseText.includes('login.php') || responseText.includes('<!DOCTYPE')) {
+                        throw new Error('会话已过期，请重新登录');
+                    }
+                    
+                    // 检查是否是PHP错误页面
+                    if (responseText.includes('Parse error') || responseText.includes('Fatal error')) {
+                        throw new Error('服务器内部错误，请联系管理员');
+                    }
+                    
+                    throw new Error('服务器返回了非JSON响应: ' + responseText.substring(0, 200));
+                }
+                
+                const result = await uploadResponse.json();
+                
+                if (result.success) {
+                    showProgress('分析完成！', 100);
+                    setTimeout(() => {
+                        window.location.href = 'records.php?id=' + result.record_id;
+                    }, 2000);
+                } else {
+                    throw new Error(result.message);
+                }
+                
+            } catch (error) {
+                showProgress('分析失败: ' + error.message, 0, true);
+                console.error('分析失败:', error);
+            }
+        }
+
+        
+        // 本地调用AI API
+                async function callAIApiLocally(code, problem, evaluationResult, apiKey, apiBaseUrl, apiModel = 'gpt-3.5-turbo') {
+            const apiUrl = `${apiBaseUrl.replace(/\/$/, '')}/chat/completions`;
+            let fullContent = '';
+            let messages = [
+                {
+                    role: 'user',
+                    content: `你是一个专业代码分析员，你需要根据用户的问题和代码结果，分析代码的问题所在，注意请不要给出最后的代码。请分析以下代码：\n\n代码：\n\`\`\`\n${code}\n\`\`\`\n\n问题描述：${problem}\n\n评测结果：${evaluationResult}`
+                }
+            ];
+
+            while (true) {
+                const requestData = {
+                    model: apiModel,
+                    messages: messages,
+                    max_tokens: 16384,
+                    temperature: 0.7
+                };
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`API请求失败 (HTTP ${response.status}): ${errorText}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                    throw new Error('API响应格式不正确');
+                }
+
+                const content = data.choices[0].message.content.trim();
+                fullContent += (fullContent ? '\n' : '') + content;
+
+                if (data.choices[0].finish_reason === 'length') {
+                    messages.push({ role: 'assistant', content: content });
+                    messages.push({ role: 'user', content: '请继续刚才的分析，不要重复之前的内容，直接从截断的地方开始写。' });
+                } else {
+                    break;
+                }
+            }
+            return fullContent.trim();
+        }
+        
+        // 显示进度
+        function showProgress(message, percent, isError = false) {
+            const progressSection = document.getElementById('progress-section');
+            const progressMessage = document.getElementById('progress-message');
+            const progressFill = document.getElementById('progress-fill');
+            const progressText = document.getElementById('progress-text');
+            
+            progressSection.style.display = 'block';
+            progressMessage.textContent = message;
+            progressFill.style.width = percent + '%';
+            progressText.textContent = percent + '%';
+            
+            if (isError) {
+                progressMessage.className = 'message error';
+                progressFill.style.background = '#dc3545';
+            } else {
+                progressMessage.className = 'message success';
+                progressFill.style.background = '#007bff';
+            }
+        }
+        
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', function() {
             highlightCode();
+            
+            // 检查是否有待处理的记录
+            <?php if (isset($_SESSION['pending_record_id'])): ?>
+            showProgress('检测到待处理的记录，请重新提交分析', 0, true);
+            <?php unset($_SESSION['pending_record_id']); ?>
+            <?php endif; ?>
         });
     </script>
 </body>

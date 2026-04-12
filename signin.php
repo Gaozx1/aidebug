@@ -11,8 +11,11 @@ if (!isset($_SESSION['user_id'])) {
 
 // 处理签到请求
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['signin'])) {
+    $config = getConfig();
+    $signin_reward = isset($config['signin_reward']) ? (int)$config['signin_reward'] : 50;
+    
     if (addSigninPoints($_SESSION['user_id'])) {
-        setMessage('签到成功！获得50积分。', 'success');
+        setMessage("签到成功！获得{$signin_reward}积分。", 'success');
         header('Location: dashboard.php');
         exit;
     } else {
