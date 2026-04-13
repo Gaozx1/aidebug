@@ -2,16 +2,16 @@
 session_start();
 require_once 'config.php';
 
-// 初始化数据文件
+
 initDataFiles();
 
-// 检查是否有临时用户会话
+
 if (!isset($_SESSION['temp_user'])) {
     header('Location: login.php');
     exit;
 }
 
-// 获取用户信息
+
 $users = getUsers();
 $username = $_SESSION['temp_user'];
 $user = isset($users[$username]) ? $users[$username] : null;
@@ -22,14 +22,14 @@ if (!$user) {
     exit;
 }
 
-// 处理重新发送验证邮件
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['resend_verification'])) {
-    // 生成新的验证令牌
+
     $users[$username]['verification_token'] = bin2hex(random_bytes(32));
     $users[$username]['verification_expires'] = date('Y-m-d H:i:s', strtotime('+24 hours'));
     
     if (saveUsers($users)) {
-        // 发送新的验证邮件
+
         $verification_url = "http://" . $_SERVER['HTTP_HOST'] . "/verify.php?token=" . $users[$username]['verification_token'];
         $subject = "请验证您的邮箱 - AI代码调试系统";
         $message = "

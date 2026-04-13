@@ -1,7 +1,5 @@
 <?php
-/**
- * API监控脚本 - 实时监控API状态
- */
+
 
 require_once 'config.php';
 
@@ -33,7 +31,7 @@ for ($i = 1; $i <= 5; $i++) {
         $error_count++;
     }
     
-    sleep(2); // 间隔2秒
+    sleep(2);
 }
 
 echo "\n=== 监控结果 ===\n";

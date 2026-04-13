@@ -1,5 +1,4 @@
 <?php
-// records.php - 重新设计的记录详情页面
 
 require_once 'config.php';
 
@@ -9,7 +8,6 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// 获取记录ID
 $record_id = isset($_GET['id']) ? $_GET['id'] : null;
 
 if (!$record_id) {
@@ -18,7 +16,6 @@ if (!$record_id) {
     exit;
 }
 
-// 获取记录信息
 $records = getRecords();
 if (!isset($records[$record_id]) || $records[$record_id]['user_id'] !== $_SESSION['user_id']) {
     setMessage('记录不存在或无权访问', 'error');
@@ -28,7 +25,6 @@ if (!isset($records[$record_id]) || $records[$record_id]['user_id'] !== $_SESSIO
 
 $record = $records[$record_id];
 
-// 获取用户的调试记录用于侧边栏
 $userRecords = [];
 foreach ($records as $r) {
     if ($r['user_id'] === $_SESSION['user_id']) {
@@ -110,7 +106,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
             box-sizing: border-box;
             transition: background-color 0.3s, color 0.3s;
         }
-        
+
         body {
             font-family: 'Arial', sans-serif;
             background-color: var(--light-bg);
@@ -119,8 +115,8 @@ $recentRecords = array_slice($userRecords, 0, 5);
             display: flex;
             min-height: 100vh;
         }
-        
-        /* 侧边栏样式 */
+
+
         .sidebar {
             width: 280px;
             background: white;
@@ -136,25 +132,25 @@ $recentRecords = array_slice($userRecords, 0, 5);
             background: var(--dark-bg);
             color: var(--text-light);
         }
-        
+
         .sidebar-header {
             text-align: center;
             margin-bottom: 30px;
             padding-bottom: 20px;
             border-bottom: 2px solid var(--border-color);
         }
-        
+
         .sidebar-header h1 {
             color: var(--primary-color);
             font-size: 20px;
             margin-bottom: 10px;
         }
-        
+
         .user-info {
             text-align: center;
             margin-bottom: 20px;
         }
-        
+
         .points-display {
             background: var(--success-color);
             color: white;
@@ -165,11 +161,11 @@ $recentRecords = array_slice($userRecords, 0, 5);
             display: inline-block;
             margin: 10px 0;
         }
-        
+
         .sidebar-section {
             margin-bottom: 30px;
         }
-        
+
         .sidebar-section h3 {
             color: var(--primary-color);
             margin-bottom: 15px;
@@ -177,15 +173,15 @@ $recentRecords = array_slice($userRecords, 0, 5);
             border-left: 3px solid var(--primary-color);
             padding-left: 10px;
         }
-        
+
         .sidebar-nav {
             list-style: none;
         }
-        
+
         .sidebar-nav li {
             margin-bottom: 8px;
         }
-        
+
         .sidebar-nav a {
             display: block;
             padding: 10px 15px;
@@ -198,7 +194,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
         .dark-mode .sidebar-nav a {
             color: var(--text-light);
         }
-        
+
         .sidebar-nav a:hover {
             background: var(--light-bg);
             color: var(--primary-color);
@@ -207,26 +203,26 @@ $recentRecords = array_slice($userRecords, 0, 5);
         .dark-mode .sidebar-nav a:hover {
             background: #4a5568;
         }
-        
+
         .sidebar-nav a.active {
             background: var(--primary-color);
             color: white;
         }
-        
-        /* 主内容区域 */
+
+
         .main-content {
             flex: 1;
             margin-left: 280px;
             padding: 30px;
         }
-        
+
         .content-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 30px;
         }
-        
+
         .theme-toggle {
             background: var(--primary-color);
             color: white;
@@ -236,7 +232,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
             cursor: pointer;
             font-size: 14px;
         }
-        
+
         .record-detail {
             background: white;
             padding: 30px;
@@ -248,18 +244,18 @@ $recentRecords = array_slice($userRecords, 0, 5);
             background: var(--dark-bg);
             color: var(--text-light);
         }
-        
+
         .record-section {
             margin-bottom: 30px;
         }
-        
+
         .record-section h2 {
             color: var(--primary-color);
             border-bottom: 2px solid var(--primary-color);
             padding-bottom: 10px;
             margin-bottom: 15px;
         }
-        
+
         .code-block {
             background: #1e1e1e !important;
             color: #d4d4d4 !important;
@@ -277,7 +273,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
             color: #f8f9fa !important;
             border-color: #4a5568 !important;
         }
-        
+
         .ai-response {
             background: var(--light-bg);
             padding: 20px;
@@ -288,7 +284,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
         .dark-mode .ai-response {
             background: #4a5568;
         }
-        
+
         .btn {
             padding: 10px 20px;
             border: none;
@@ -299,16 +295,16 @@ $recentRecords = array_slice($userRecords, 0, 5);
             transition: all 0.3s;
             display: inline-block;
         }
-        
+
         .btn-primary {
             background: var(--primary-color);
             color: white;
         }
-        
+
         .btn-primary:hover {
             background: #0056b3;
         }
-        
+
         .record-meta {
             background: var(--light-bg);
             padding: 15px;
@@ -321,31 +317,31 @@ $recentRecords = array_slice($userRecords, 0, 5);
             background: #4a5568;
             color: var(--text-light);
         }
-        
+
         .message {
             padding: 15px;
             margin-bottom: 20px;
             border-radius: 5px;
             border-left: 4px solid;
         }
-        
+
         .message.success {
             background: #d4edda;
             border-color: var(--success-color);
             color: #155724;
         }
-        
+
         .message.error {
             background: #f8d7da;
             border-color: var(--danger-color);
             color: #721c24;
         }
-        
-        /* Markdown样式修复 */
+
+
         .markdown-content {
             line-height: 1.6;
         }
-        
+
         .markdown-content h1, .markdown-content h2, .markdown-content h3 {
             margin: 20px 0 10px 0;
             color: var(--text-dark);
@@ -356,11 +352,11 @@ $recentRecords = array_slice($userRecords, 0, 5);
         .dark-mode .markdown-content h3 {
             color: var(--text-light);
         }
-        
+
         .markdown-content p {
             margin-bottom: 15px;
         }
-        
+
         .markdown-content code:not(pre code) {
             background: #f1f1f1;
             padding: 2px 6px;
@@ -373,7 +369,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
             background: #4a5568;
             color: #fbb6ce;
         }
-        
+
         .markdown-content pre {
             background: #1e1e1e !important;
             color: #d4d4d4 !important;
@@ -383,13 +379,13 @@ $recentRecords = array_slice($userRecords, 0, 5);
             border: 1px solid #333;
             margin: 15px 0;
         }
-        
+
         .dark-mode .markdown-content pre {
             background: #2d3748 !important;
             border-color: #4a5568 !important;
             color: #f8f9fa !important;
         }
-        
+
         .markdown-content pre code {
             background: transparent !important;
             color: #d4d4d4 !important;
@@ -399,7 +395,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
         .dark-mode .markdown-content pre code {
             color: #f8f9fa !important;
         }
-        
+
         .markdown-content blockquote {
             border-left: 4px solid var(--primary-color);
             padding-left: 15px;
@@ -411,23 +407,23 @@ $recentRecords = array_slice($userRecords, 0, 5);
         .dark-mode .markdown-content blockquote {
             color: #a0aec0;
         }
-        
-        /* MathJax 样式 */
+
+
         .mjx-chtml {
             font-size: 1.1em !important;
         }
-        
-        /* 行内公式样式 */
+
+
         .mjx-chtml[display="inline"] {
             vertical-align: baseline;
         }
-        
-        /* 块级公式样式 */
+
+
         .mjx-chtml[display="block"] {
             text-align: center;
             margin: 1em 0;
         }
-        
+
         .latex-formula {
             font-family: "Times New Roman", serif;
             font-style: italic;
@@ -442,14 +438,14 @@ $recentRecords = array_slice($userRecords, 0, 5);
             background: #4a5568;
             color: var(--text-light);
         }
-        
+
         @media (max-width: 768px) {
             .sidebar {
                 width: 100%;
                 height: auto;
                 position: relative;
             }
-            
+
             .main-content {
                 margin-left: 0;
             }
@@ -466,7 +462,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
                 <div class="points-display">积分: <?php echo getUserPoints($_SESSION['user_id']); ?></div>
             </div>
         </div>
-        
+
         <div class="sidebar-section">
             <h3>快速操作</h3>
             <ul class="sidebar-nav">
@@ -480,7 +476,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
                 <li><a href="logout.php">退出登录</a></li>
             </ul>
         </div>
-        
+
         <div class="sidebar-section">
             <h3>最近记录</h3>
             <?php if (empty($recentRecords)): ?>
@@ -499,42 +495,42 @@ $recentRecords = array_slice($userRecords, 0, 5);
             <?php endif; ?>
         </div>
     </div>
-    
+
     <!-- 主内容区域 -->
     <div class="main-content">
         <div class="content-header">
             <h2>记录详情</h2>
             <button class="theme-toggle" onclick="toggleDarkMode()">🌙 深色模式</button>
         </div>
-        
+
         <?php if (isset($_SESSION['message'])): ?>
             <div class="message <?php echo $_SESSION['message_type']; ?>">
                 <?php echo $_SESSION['message']; ?>
             </div>
             <?php unset($_SESSION['message']); unset($_SESSION['message_type']); ?>
         <?php endif; ?>
-        
+
         <div class="record-detail">
             <div class="record-section">
                 <h2>问题标题</h2>
                 <p><?php echo htmlspecialchars($record['title']); ?></p>
             </div>
-            
+
             <div class="record-section">
                 <h2>题目</h2>
                 <?php echo markdownToHtml($record['problem']); ?>
             </div>
-            
+
             <div class="record-section">
                 <h2>代码</h2>
                 <div class="code-block"><?php echo htmlspecialchars($record['code']); ?></div>
             </div>
-            
+
             <div class="record-section">
                 <h2>评测结果</h2>
                 <?php echo markdownToHtml($record['evaluation_result']); ?>
             </div>
-            
+
             <?php if (!empty($record['ai_response'])): ?>
             <div class="record-section">
                 <h2>AI分析结果</h2>
@@ -543,13 +539,13 @@ $recentRecords = array_slice($userRecords, 0, 5);
                 </div>
             </div>
             <?php endif; ?>
-            
+
             <div class="record-meta">
                 <p><strong>创建时间：</strong><?php echo $record['created_at']; ?></p>
                 <p><strong>更新时间：</strong><?php echo $record['updated_at']; ?></p>
                 <p><strong>状态：</strong><?php echo $record['status'] === 'completed' ? '已完成' : '处理中'; ?></p>
             </div>
-            
+
             <div style="margin-top: 20px;">
                 <a href="dashboard.php" class="btn btn-primary">返回控制台</a>
             </div>
@@ -557,7 +553,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
     </div>
 
     <script>
-        // 深色模式切换
+
         function toggleDarkMode() {
             document.body.classList.toggle('dark-mode');
             const button = document.querySelector('.theme-toggle');
@@ -569,8 +565,8 @@ $recentRecords = array_slice($userRecords, 0, 5);
                 localStorage.setItem('darkMode', 'disabled');
             }
         }
-        
-        // 检查本地存储的深色模式设置
+
+
         if (localStorage.getItem('darkMode') === 'enabled') {
             document.body.classList.add('dark-mode');
             document.querySelector('.theme-toggle').textContent = '☀️ 浅色模式';

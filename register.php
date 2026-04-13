@@ -2,10 +2,10 @@
 session_start();
 require_once 'config.php';
 
-// 初始化数据文件
+
 initDataFiles();
 
-// 如果已经登录，重定向到控制台
+
 if (isset($_SESSION['user_id'])) {
     header('Location: dashboard.php');
     exit;
@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $confirm_password = $_POST['confirm_password'];
     $invite_code = isset($_POST['invite_code']) ? trim($_POST['invite_code']) : '';
     
-    // 验证输入
+
     if (empty($username) || empty($email) || empty($password)) {
         $error = '请填写所有必填字段';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -33,11 +33,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $users = getUsers();
         
-        // 检查用户名是否已存在
+
         if (isset($users[$username])) {
             $error = '用户名已存在';
         } else {
-            // 检查邮箱是否已存在
+
             $emailExists = false;
             foreach ($users as $user) {
                 if ($user['email'] === $email) {
@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($emailExists) {
                 $error = '邮箱已被注册';
             } else {
-                // 处理邀请码
+
                 $inviter_username = null;
                 if (!empty($invite_code)) {
                     $inviter_username = useInviteCode($invite_code, $username);
@@ -59,15 +59,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 if (empty($error)) {
-                    // 刷新用户数据，避免邀请码使用状态丢失
+
                     $users = getUsers();
-                    // 创建新用户
+
                     $users[$username] = [
                         'id' => generateId(),
                         'username' => $username,
                         'email' => $email,
                         'password' => password_hash($password, PASSWORD_DEFAULT),
-                        'points' => !empty($invite_code) ? 50 : 0, // 使用邀请码获得50初始积分
+                        'points' => !empty($invite_code) ? 50 : 0,
                         'is_admin' => false,
                         'created_at' => date('Y-m-d H:i:s'),
                         'last_login' => null

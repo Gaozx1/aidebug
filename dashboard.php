@@ -1,17 +1,17 @@
 <?php
-// dashboard.php - 重新设计的控制台页面
 
-// 引入配置文件
+
+
 require_once 'config.php';
 
-// 会话检查和用户验证代码保持不变
+
 session_start();
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
 }
 
-// 处理代码调试请求 - 客户端API调用版本
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_code'])) {
     header('Content-Type: application/json');
     $title = trim($_POST['title']);
@@ -23,11 +23,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_code'])) {
                 echo json_encode(['success' => false, 'message' => '请填写所有必填字段']);
                 exit;
             } else {
-        // 计算代码行数和所需积分
+
         $code_lines = calculateCodeLines($code);
         $required_points = calculateRequiredPoints($code_lines);
 
-        // 检查积分是否足够
+
         if (!canAffordAnalysisByCode($_SESSION['user_id'], $code)) {
                     echo json_encode(['success' => false, 'message' => "积分不足，分析{$code_lines}行代码需要{$required_points}积分。请先签到获取积分。"]);
                     exit;
@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_code'])) {
             $records = getRecords();
             $users = getUsers();
             
-            // 创建新记录（状态为pending，等待客户端API调用完成）
+
             $record_id = generateId();
             $newRecord = [
                 'id' => $record_id,
@@ -45,16 +45,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_code'])) {
                 'code' => $code,
                 'evaluation_result' => $evaluation_result,
                 'ai_response' => '',
-                'status' => 'pending', // 等待客户端API调用
+                'status' => 'pending',
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s')
             ];
             
-            // 保存记录（不扣积分，等待客户端完成）
+
             $records[$record_id] = $newRecord;
             
             if (saveRecords($records)) {
-                            // 返回记录ID给客户端，让客户端进行API调用
+
                             $_SESSION['pending_record_id'] = $record_id;
                             $_SESSION['pending_code_lines'] = $code_lines;
                             $_SESSION['pending_required_points'] = $required_points;
@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_code'])) {
     }
 }
 
-// 提供API配置给客户端（不包含完整的API密钥）
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_api_config'])) {
     header('Content-Type: application/json');
     $config = getConfig();
@@ -80,13 +80,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_api_config'])) {
         exit;
     }
     
-    // 只返回API密钥的前几位和后几位，用于验证
+
     $key_length = strlen($api_key);
     $masked_key = substr($api_key, 0, 8) . '...' . substr($api_key, -4);
     
     echo json_encode([
         'success' => true,
-        'api_key' => $api_key, // 实际返回完整密钥用于客户端调用
+        'api_key' => $api_key,
         'api_base_url' => getConfigValue($config, 'api_base_url') ?: 'https://api.openai.com/v1',
         'api_model' => getConfigValue($config, 'api_model') ?: 'gpt-3.5-turbo',
         'masked_key' => $masked_key,
@@ -95,7 +95,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_api_config'])) {
     exit;
 }
 
-// 处理客户端上传的AI分析结果
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_current_points'])) {
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => true,
+        'points' => getUserPoints($_SESSION['user_id'])
+    ]);
+    exit;
+}
+
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['get_analysis_config'])) {
+    header('Content-Type: application/json');
+    $config = getConfig();
+    echo json_encode([
+        'success' => true,
+        'config' => [
+            'basePoints' => isset($config['analysis_cost']) ? (int)$config['analysis_cost'] : 20,
+            'freeLines' => 200,
+            'extraChargeLines' => 100,
+            'extraChargePoints' => 10
+        ]
+    ]);
+    exit;
+}
+
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_ai_result'])) {
     header('Content-Type: application/json');
     $record_id = trim($_POST['record_id']);
@@ -113,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_ai_result'])) 
         exit;
     }
     
-    // 检查AI响应是否包含错误
+
     $error_keywords = ['API请求失败', 'cURL错误', 'HTTP 错误', '响应格式错误'];
     $is_error = false;
     foreach ($error_keywords as $keyword) {
@@ -124,14 +150,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_ai_result'])) 
     }
     
     if ($is_error || empty($ai_response)) {
-        // AI分析失败，删除记录，不扣积分
+
         unset($records[$record_id]);
         saveRecords($records);
         echo json_encode(['success' => false, 'message' => 'AI分析失败：' . ($ai_response ?: '无响应')]);
         exit;
     }
     
-    // AI分析成功，更新记录并扣除积分
+
     $code_lines = calculateCodeLines($records[$record_id]['code']);
     $required_points = calculateRequiredPoints($code_lines);
     
@@ -143,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_ai_result'])) 
         if (saveRecords($records)) {
             echo json_encode(['success' => true, 'message' => "代码分析完成！已扣除{$required_points}积分（{$code_lines}行代码）。", 'record_id' => $record_id]);
         } else {
-            // 记录保存失败，返还积分
+
             $current_points = getUserPoints($_SESSION['user_id']);
             updateUserPoints($_SESSION['user_id'], $current_points + $required_points);
             echo json_encode(['success' => false, 'message' => '保存记录失败，积分已返还，请稍后重试']);
@@ -155,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_ai_result'])) 
     exit;
 }
 
-// 获取用户的调试记录
+
 $records = getRecords();
 $userRecords = [];
 
@@ -165,12 +191,12 @@ foreach ($records as $record) {
     }
 }
 
-// 按创建时间倒序排列
+
 usort($userRecords, function($a, $b) {
     return strtotime($b['created_at']) - strtotime($a['created_at']);
 });
 
-// 获取最近5条记录用于侧边栏显示
+
 $recentRecords = array_slice($userRecords, 0, 5);
 ?>
 <!DOCTYPE html>
@@ -178,7 +204,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>控制台 - AI代码调试系统</title>
+    <title>Oler Debug</title>   
     <!-- MathJax Configuration -->
     <script>
     window.MathJax = {
@@ -253,7 +279,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
             min-height: 100vh;
         }
         
-        /* 侧边栏样式 */
+        
         .sidebar {
             width: 280px;
             background: white;
@@ -346,7 +372,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
             color: white;
         }
         
-        /* 主内容区域 */
+        
         .main-content {
             flex: 1;
             margin-left: 280px;
@@ -515,7 +541,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
             color: #721c24;
         }
         
-        /* 代码块样式修复 */
+        
         .code-block {
             background: #1e1e1e !important;
             color: #d4d4d4 !important;
@@ -540,7 +566,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
             padding: 0 !important;
         }
         
-        /* 最近记录样式 */
+        
         .recent-records {
             background: white;
             padding: 20px;
@@ -599,7 +625,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
             text-decoration: none;
         }
         
-        /* Markdown样式修复 */
+        
         .markdown-content {
             line-height: 1.6;
         }
@@ -670,23 +696,23 @@ $recentRecords = array_slice($userRecords, 0, 5);
             color: #a0aec0;
         }
         
-        /* MathJax 样式 */
+        
         .mjx-chtml {
             font-size: 1.1em !important;
         }
         
-        /* 行内公式样式 */
+        
         .mjx-chtml[display="inline"] {
             vertical-align: baseline;
         }
         
-        /* 块级公式样式 */
+        
         .mjx-chtml[display="block"] {
             text-align: center;
             margin: 1em 0;
         }
         
-        /* 公式示例样式 */
+        
         .formula-examples {
             background: #f8f9fa;
             padding: 15px;
@@ -804,33 +830,48 @@ $recentRecords = array_slice($userRecords, 0, 5);
                 </div>
                 
                 <!-- API配置信息（从服务器获取） -->
-                <div class="form-group" id="api-config-section">
-                    <label>API配置信息</label>
-                    <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 4px solid #007bff;">
-                        <small style="color: #666;">
-                            <strong>使用系统配置的API：</strong><br>
-                            API密钥：<?php echo getConfigValue(getConfig(), 'api_key') ? '已配置' : '未配置'; ?><br>
-                            基础URL：<?php echo getConfigValue(getConfig(), 'api_base_url') ?: 'https://api.openai.com/v1'; ?><br>
-                            模型：<?php echo getConfigValue(getConfig(), 'api_model') ?: 'gpt-3.5-turbo'; ?>
-                        </small>
-                    </div>
-                    <small style="color: #666; font-size: 12px;">API调用将在客户端进行，使用系统配置的密钥</small>
-                </div>
                 
                 <div class="cost-info">
                     💰 分析费用: <strong id="required-points">30</strong> 积分 (<span id="code-lines">0</span> 行代码)
-                    <br>当前积分: <strong><?php echo getUserPoints($_SESSION['user_id']); ?></strong>
+                    <br>当前积分: <strong id="current-points-display"><?php echo getUserPoints($_SESSION['user_id']); ?></strong>
                     <div id="insufficient-warning" style="color: #dc3545; display: none;">积分不足！请先签到获取积分。</div>
                 </div>
 
                 <script>
-                function calculateCost() {
+                async function getCurrentPoints() {
+                    try {
+                        const response = await fetch('dashboard.php?get_current_points=1');
+                        const result = await response.json();
+                        if (result.success) {
+                            return result.points;
+                        }
+                    } catch (error) {
+                        console.error('获取积分失败:', error);
+                    }
+                    return <?php echo getUserPoints($_SESSION['user_id']); ?>;
+                }
+
+                async function getAnalysisConfig() {
+                    try {
+                        const response = await fetch('dashboard.php?get_analysis_config=1');
+                        const result = await response.json();
+                        if (result.success) {
+                            return result.config;
+                        }
+                    } catch (error) {
+                        console.error('获取分析配置失败:', error);
+                    }
+                    return { basePoints: 20, freeLines: 200, extraChargeLines: 100, extraChargePoints: 10 };
+                }
+
+                async function calculateCost() {
                     const code = document.getElementById('code').value;
                     const lines = code.split('\n').filter(line => line.trim() !== '').length;
-                    const basePoints = 30;
-                    const freeLines = 200;
-                    const extraChargeLines = 100;
-                    const extraChargePoints = 10;
+                    const config = await getAnalysisConfig();
+                    const basePoints = config.basePoints || 20;
+                    const freeLines = config.freeLines || 200;
+                    const extraChargeLines = config.extraChargeLines || 100;
+                    const extraChargePoints = config.extraChargePoints || 10;
 
                     let requiredPoints = basePoints;
                     if (lines > freeLines) {
@@ -842,7 +883,7 @@ $recentRecords = array_slice($userRecords, 0, 5);
                     document.getElementById('code-lines').textContent = lines;
                     document.getElementById('required-points').textContent = requiredPoints;
 
-                    const currentPoints = <?php echo getUserPoints($_SESSION['user_id']); ?>;
+                    const currentPoints = await getCurrentPoints();
                     const warning = document.getElementById('insufficient-warning');
                     const submitBtn = document.getElementById('submit-btn');
 
@@ -855,14 +896,49 @@ $recentRecords = array_slice($userRecords, 0, 5);
                     }
                 }
 
-                // 监听代码输入变化
+                function updatePointsDisplay() {
+                    getCurrentPoints().then(points => {
+                        const currentPointsElement = document.getElementById('current-points-display');
+                        const sidebarPointsElement = document.querySelector('.points-display');
+                        
+                        if (currentPointsElement && currentPointsElement.textContent !== points.toString()) {
+                            currentPointsElement.textContent = points;
+                        }
+                        if (sidebarPointsElement && sidebarPointsElement.textContent !== '积分: ' + points) {
+                            sidebarPointsElement.textContent = '积分: ' + points;
+                        }
+                    });
+                }
+
                 document.getElementById('code').addEventListener('input', calculateCost);
-                // 页面加载时计算一次
+
                 calculateCost();
+
+                updatePointsDisplay();
+                
+                setInterval(updatePointsDisplay, 3000);
+                
+                window.addEventListener('load', function() {
+                    setTimeout(updatePointsDisplay, 100);
+                });
+                
+                if (performance.navigation.type === 1) {
+                    setTimeout(updatePointsDisplay, 500);
+                }
+                
+                document.addEventListener('visibilitychange', function() {
+                    if (!document.hidden) {
+                        setTimeout(updatePointsDisplay, 300);
+                    }
+                });
+                
+                window.addEventListener('focus', function() {
+                    setTimeout(updatePointsDisplay, 200);
+                });
                 </script>
                 
                 <button type="button" class="btn btn-primary" id="submit-btn" onclick="submitAnalysis()">
-                    <?php echo canAffordAnalysis($_SESSION['user_id']) ? '提交分析（本地API调用）' : '积分不足'; ?>
+                    <?php echo canAffordAnalysis($_SESSION['user_id']) ? '提交分析' : '积分不足'; ?>
                 </button>
                 
                 <!-- 进度显示区域 -->
@@ -876,52 +952,10 @@ $recentRecords = array_slice($userRecords, 0, 5);
             </form>
         </div>
         
-        <div class="recent-records">
-            <h3>功能说明</h3>
-            <div class="markdown-content">
-                <h4>📝 如何使用</h4>
-                <p>1. 填写问题标题、题目描述、代码内容和评测结果</p>
-                <p>2. 每次分析需要消耗 <strong>30 积分</strong></p>
-                <p>3. 点击"提交分析"获取AI代码调试建议</p>
-                
-                <h4>🎯 支持的功能</h4>
-                <ul>
-                    <li>代码语法分析和错误检测</li>
-                    <li>性能优化建议</li>
-                    <li>代码风格改进</li>
-                    <li>算法优化建议</li>
-                </ul>                
-                <h4>📐 数学公式示例</h4>
-                <div class="formula-examples">
-                    <p><strong>行内公式：</strong> $O(\log(\text{Range}) \cdot N^2)$ $\rightarrow$ 优化</p>
-                    <p><strong>块级公式：</strong></p>
-                    $$\int_0^\infty e^{-x^2} \, dx = \frac{\sqrt{\pi}}{2}$$
-                    <p><strong>常用语法：</strong></p>
-                    <ul>
-                        <li>分数：$\frac{a}{b}$</li>
-                        <li>上标下标：$x^2$, $x_{sub}$</li>
-                        <li>求和积分：$\sum_{i=1}^n x_i$, $\int_a^b f(x) \, dx$</li>
-                        <li>希腊字母：$\alpha, \beta, \gamma, \delta$</li>
-                        <li>文本混排：$\text{时间复杂度} O(n\log n)$</li>
-                    </ul>
-                </div>                
-                <h4>💡 示例代码格式</h4>
-                <div class="code-block">
-// 示例代码
-function calculateSum($numbers) {
-    $sum = 0;
-    foreach ($numbers as $number) {
-        $sum += $number;
-    }
-    return $sum;
-}
-                </div>
-            </div>
-        </div>
-    </div>
+
 
     <script>
-        // 深色模式切换
+
         function toggleDarkMode() {
             document.body.classList.toggle('dark-mode');
             const button = document.querySelector('.theme-toggle');
@@ -934,13 +968,13 @@ function calculateSum($numbers) {
             }
         }
         
-        // 检查本地存储的深色模式设置
+
         if (localStorage.getItem('darkMode') === 'enabled') {
             document.body.classList.add('dark-mode');
             document.querySelector('.theme-toggle').textContent = '☀️ 浅色模式';
         }
         
-        // 代码高亮示例（可以集成highlight.js等库）
+
         function highlightCode() {
             const codeBlocks = document.querySelectorAll('.code-block');
             codeBlocks.forEach(block => {
@@ -948,24 +982,24 @@ function calculateSum($numbers) {
             });
         }
         
-        // 客户端API调用功能
+
         async function submitAnalysis() {
             const title = document.getElementById('title').value;
             const problem = document.getElementById('problem').value;
             const code = document.getElementById('code').value;
             const evaluationResult = document.getElementById('evaluation_result').value;
             
-            // 验证输入
+
             if (!title || !problem || !code || !evaluationResult) {
                 alert('请填写所有必填字段');
                 return;
             }
             
-            // 显示进度
+
             showProgress('正在获取API配置...', 0);
             
             try {
-                // 1. 从服务器获取API配置
+
                 const configResponse = await fetch('dashboard.php?get_api_config=1');
                 const configResult = await configResponse.json();
                 
@@ -979,7 +1013,7 @@ function calculateSum($numbers) {
                 
                 showProgress('API配置获取成功，正在创建记录...', 10);
                 
-                // 2. 创建记录（不扣积分）
+
                 const formData = new FormData();
                 formData.append('debug_code', '1');
                 formData.append('title', title);
@@ -999,7 +1033,7 @@ function calculateSum($numbers) {
                     throw new Error('创建记录失败');
                 }
                 
-                // 获取服务器返回的record_id
+
                 const createResult = await createResponse.json();
                 
                 if (!createResult.success) {
@@ -1014,12 +1048,12 @@ function calculateSum($numbers) {
                 
                 showProgress('记录创建成功，正在调用AI API...', 30);
                 
-                // 3. 客户端调用AI API
+
                 const aiResponse = await callAIApiLocally(code, problem, evaluationResult, apiKey, apiBaseUrl, apiModel);
                 
                 showProgress('AI分析完成，正在上传结果...', 80);
                 
-                // 4. 上传AI分析结果到服务器
+
                 const uploadData = new FormData();
                 uploadData.append('upload_ai_result', '1');
                 uploadData.append('record_id', recordId);
@@ -1030,17 +1064,17 @@ function calculateSum($numbers) {
                     body: uploadData
                 });
                 
-                // 检查响应内容类型，确保是JSON
+
                 const contentType = uploadResponse.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
                     const responseText = await uploadResponse.text();
                     
-                    // 检查是否是重定向到登录页面
+
                     if (responseText.includes('login.php') || responseText.includes('<!DOCTYPE')) {
                         throw new Error('会话已过期，请重新登录');
                     }
                     
-                    // 检查是否是PHP错误页面
+
                     if (responseText.includes('Parse error') || responseText.includes('Fatal error')) {
                         throw new Error('服务器内部错误，请联系管理员');
                     }
@@ -1066,14 +1100,14 @@ function calculateSum($numbers) {
         }
 
         
-        // 本地调用AI API
+
                 async function callAIApiLocally(code, problem, evaluationResult, apiKey, apiBaseUrl, apiModel = 'gpt-3.5-turbo') {
             const apiUrl = `${apiBaseUrl.replace(/\/$/, '')}/chat/completions`;
             let fullContent = '';
             let messages = [
                 {
                     role: 'user',
-                    content: `你是一个专业代码分析员，你需要根据用户的问题和代码结果，分析代码的问题所在，注意请不要给出最后的代码。请分析以下代码：\n\n代码：\n\`\`\`\n${code}\n\`\`\`\n\n问题描述：${problem}\n\n评测结果：${evaluationResult}`
+                    content: `你是一个专业代码分析员，同时也是一个小男娘。请分析以下代码：\n\n代码：\n\`\`\`\n${code}\n\`\`\`\n\n问题描述：${problem}\n\n评测结果：${evaluationResult}`
                 }
             ];
 
@@ -1118,7 +1152,7 @@ function calculateSum($numbers) {
             return fullContent.trim();
         }
         
-        // 显示进度
+
         function showProgress(message, percent, isError = false) {
             const progressSection = document.getElementById('progress-section');
             const progressMessage = document.getElementById('progress-message');
@@ -1139,11 +1173,11 @@ function calculateSum($numbers) {
             }
         }
         
-        // 页面加载完成后执行
+
         document.addEventListener('DOMContentLoaded', function() {
             highlightCode();
             
-            // 检查是否有待处理的记录
+
             <?php if (isset($_SESSION['pending_record_id'])): ?>
             showProgress('检测到待处理的记录，请重新提交分析', 0, true);
             <?php unset($_SESSION['pending_record_id']); ?>

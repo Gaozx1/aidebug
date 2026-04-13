@@ -2,13 +2,13 @@
 session_start();
 require_once 'config.php';
 
-// 初始化数据文件
+
 initDataFiles();
 
 $error = '';
 $success = '';
 
-// 处理邮箱验证
+
 if (isset($_GET['token'])) {
     $token = trim($_GET['token']);
     $users = getUsers();
@@ -18,13 +18,13 @@ if (isset($_GET['token'])) {
         if (isset($user['verification_token']) && $user['verification_token'] === $token) {
             $user_found = true;
             
-            // 检查验证链接是否过期
+
             if (strtotime($user['verification_expires']) < time()) {
                 $error = '验证链接已过期，请重新注册或联系管理员。';
                 break;
             }
             
-            // 验证成功
+
             $users[$username]['email_verified'] = true;
             $users[$username]['verification_token'] = null;
             $users[$username]['verification_expires'] = null;
@@ -33,7 +33,7 @@ if (isset($_GET['token'])) {
             if (saveUsers($users)) {
                 $success = '邮箱验证成功！您现在可以登录系统了。';
                 
-                // 如果用户已登录，更新会话状态
+
                 if (isset($_SESSION['temp_user']) && $_SESSION['temp_user'] === $username) {
                     $_SESSION['user_id'] = $username;
                     $_SESSION['username'] = $username;

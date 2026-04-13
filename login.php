@@ -2,10 +2,10 @@
 session_start();
 require_once 'config.php';
 
-// 初始化数据文件
+
 initDataFiles();
 
-// 如果已经登录，重定向到控制台
+
 if (isset($_SESSION['user_id'])) {
     header('Location: dashboard.php');
     exit;
@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($users[$username])) {
             $user = $users[$username];
             if (verifyPassword($password, $user['password'])) {
-                // 检查邮箱是否已验证
+
                 $config = getConfig();
                 $email_enabled = false;
                 if (isset($config['email_enabled'])) {
@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 if ($email_enabled && (!isset($user['email_verified']) || !$user['email_verified'])) {
-                    // 邮箱未验证，跳转到验证页面
+
                     $_SESSION['temp_user'] = $username;
                     header('Location: verify_pending.php');
                     exit;
