@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Allow: /index.php
+Allow: /login.php
+Allow: /register.php
+Disallow: /admin.php
+Disallow: /dashboard.php
+Disallow: /data/
+Disallow: /components/
+Disallow: /mathjax/
+
+Sitemap: http://your-domain.com/sitemap.php

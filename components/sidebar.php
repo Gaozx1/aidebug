@@ -6,6 +6,9 @@ function renderSidebar($current_page = '') {
     $is_admin = $_SESSION['is_admin'] ?? false;
     $points = getUserPoints($user_id);
 
+    $config = getConfig();
+    $site_name = $config['site_name'] ?? 'AI 代码调试系统';
+
 
     $records = getRecords();
     $userRecords = [];
@@ -24,7 +27,7 @@ function renderSidebar($current_page = '') {
         <div class="sidebar-header">
             <div style="display: flex; align-items: center; gap: 10px;">
                 <img src="/favicon.ico" alt="Logo" style="width: 40px; height: 40px;">
-                <h1>Oler Debug</h1>
+                <h1><?php echo htmlspecialchars($site_name); ?></h1>
             </div>
             <div class="user-info">
                 <p>欢迎，<?php echo htmlspecialchars($username); ?></p>

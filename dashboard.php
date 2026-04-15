@@ -3,7 +3,18 @@
 
 
 require_once 'config.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'components' . DIRECTORY_SEPARATOR . 'sidebar.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'components' . DIRECTORY_SEPARATOR . 'styles.php';
 
+$announcementModalPath = __DIR__ . DIRECTORY_SEPARATOR . 'components' . DIRECTORY_SEPARATOR . 'announcement_modal.php';
+if (!file_exists($announcementModalPath)) {
+    $announcementModalPath = __DIR__ . DIRECTORY_SEPARATOR . 'announcement_modal.php';
+}
+if (file_exists($announcementModalPath)) {
+    require_once $announcementModalPath;
+} else {
+    error_log('announcement_modal.php not found: ' . $announcementModalPath);
+}
 
 session_start();
 if (!isset($_SESSION['user_id'])) {
@@ -18,7 +29,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_code'])) {
     $problem = trim($_POST['problem']);
     $code = trim($_POST['code']);
     $evaluation_result = trim($_POST['evaluation_result']);
-    
+    $turnstile_token = $_POST['cf-turnstile-response'] ?? '';
+
+    // 验证验证码
+    if (!verifyTurnstile($turnstile_token)) {
+        echo json_encode(['success' => false, 'message' => '验证码验证失败，请重试']);
+        exit;
+    }
+
     if (empty($title) || empty($problem) || empty($code) || empty($evaluation_result)) {
                 echo json_encode(['success' => false, 'message' => '请填写所有必填字段']);
                 exit;
@@ -198,13 +216,16 @@ usort($userRecords, function($a, $b) {
 
 
 $recentRecords = array_slice($userRecords, 0, 5);
+
+$config = getConfig();
+$site_name = getConfigValue($config, 'site_name', 'AI代码调试系统');
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Oler Debug</title>   
+    <title><?php echo htmlspecialchars($site_name); ?> - 代码调试控制台</title>
     <!-- MathJax Configuration -->
     <script>
     window.MathJax = {
@@ -746,49 +767,10 @@ $recentRecords = array_slice($userRecords, 0, 5);
             }
         }
     </style>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body class="">
-    <!-- 侧边栏 -->
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <h1>AI代码调试系统</h1>
-            <div class="user-info">
-                <p>欢迎，<?php echo htmlspecialchars($_SESSION['username']); ?></p>
-                <div class="points-display">积分: <?php echo getUserPoints($_SESSION['user_id']); ?></div>
-            </div>
-        </div>
-        
-        <div class="sidebar-section">
-            <h3>快速操作</h3>
-            <ul class="sidebar-nav">
-                <li><a href="signin.php" class="btn-success" style="color: white; text-align: center;">每日签到</a></li>
-                <li><a href="#debug-form" class="active">代码调试</a></li>
-                <li><a href="records.php">查看所有记录</a></li>
-                <?php if ($_SESSION['is_admin']): ?>
-                    <li><a href="admin.php">管理后台</a></li>
-                <?php endif; ?>
-                <li><a href="logout.php">退出登录</a></li>
-            </ul>
-        </div>
-        
-        <div class="sidebar-section">
-            <h3>最近记录</h3>
-            <?php if (empty($recentRecords)): ?>
-                <p style="color: #666; font-style: italic; text-align: center;">暂无记录</p>
-            <?php else: ?>
-                <?php foreach ($recentRecords as $record): ?>
-                    <div class="record-item">
-                        <div class="record-title"><?php echo htmlspecialchars($record['title']); ?></div>
-                        <div class="record-preview"><?php echo htmlspecialchars(substr($record['problem'], 0, 50)); ?>...</div>
-                        <a href="records.php?id=<?php echo $record['id']; ?>" style="font-size: 12px; color: var(--primary-color);">查看详情</a>
-                    </div>
-                <?php endforeach; ?>
-                <div class="view-all">
-                    <a href="records.php">查看全部记录 →</a>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
+    <?php renderSidebar('dashboard'); ?>
     
     <!-- 主内容区域 -->
     <div class="main-content">
@@ -804,8 +786,6 @@ $recentRecords = array_slice($userRecords, 0, 5);
             <?php unset($_SESSION['message']); unset($_SESSION['message_type']); ?>
         <?php endif; ?>
 
-        <?php renderAnnouncementBanner(); ?>
-        
         <div class="debug-form" id="debug-form">
             <h2>提交代码调试</h2>
             <form method="POST" action="" id="debug-form">
@@ -936,7 +916,11 @@ $recentRecords = array_slice($userRecords, 0, 5);
                     setTimeout(updatePointsDisplay, 200);
                 });
                 </script>
-                
+
+                <div class="form-group">
+                    <div class="cf-turnstile" data-sitekey="<?php echo htmlspecialchars(getConfigValue(getConfig(), 'turnstile_site_key')); ?>"></div>
+                </div>
+
                 <button type="button" class="btn btn-primary" id="submit-btn" onclick="submitAnalysis()">
                     <?php echo canAffordAnalysis($_SESSION['user_id']) ? '提交分析' : '积分不足'; ?>
                 </button>
@@ -1184,5 +1168,6 @@ $recentRecords = array_slice($userRecords, 0, 5);
             <?php endif; ?>
         });
     </script>
+    <?php renderAnnouncementModal(); ?>
 </body>
 </html>

@@ -16,8 +16,12 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username']);
     $password = $_POST['password'];
-    
-    if (empty($username) || empty($password)) {
+    $turnstile_token = $_POST['cf-turnstile-response'] ?? '';
+
+    // 验证验证码
+    if (!verifyTurnstile($turnstile_token)) {
+        $error = '验证码验证失败，请重试';
+    } elseif (empty($username) || empty($password)) {
         $error = '请输入用户名和密码';
     } else {
         $users = getUsers();
@@ -65,7 +69,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>登录 - AI代码调试系统</title>
+    <title>登录 - <?php echo htmlspecialchars($config['site_name'] ?? 'AI代码调试系统'); ?></title>
+    <meta name="description" content="登录到AI代码调试系统，享受专业的代码分析和调试服务。">
+    <meta name="keywords" content="登录,AI代码调试,代码分析,开发者工具">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="canonical" href="<?php echo htmlspecialchars('http://' . $_SERVER['HTTP_HOST'] . '/login.php'); ?>">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <style>
         * {
             margin: 0;
@@ -164,6 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             text-decoration: underline;
         }
     </style>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
     <div class="login-container">
@@ -186,7 +196,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <label for="password">密码</label>
                 <input type="password" id="password" name="password" required>
             </div>
-            
+
+            <div class="form-group">
+                <div class="cf-turnstile" data-sitekey="<?php echo htmlspecialchars(getConfigValue(getConfig(), 'turnstile_site_key')); ?>"></div>
+            </div>
+
             <button type="submit" class="btn">登录</button>
         </form>
         

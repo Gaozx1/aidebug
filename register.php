@@ -20,9 +20,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
     $invite_code = isset($_POST['invite_code']) ? trim($_POST['invite_code']) : '';
-    
+    $turnstile_token = $_POST['cf-turnstile-response'] ?? '';
 
-    if (empty($username) || empty($email) || empty($password)) {
+    // 验证验证码
+    if (!verifyTurnstile($turnstile_token)) {
+        $error = '验证码验证失败，请重试';
+    } elseif (empty($username) || empty($email) || empty($password)) {
         $error = '请填写所有必填字段';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = '请输入有效的邮箱地址';
@@ -93,7 +96,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>注册 - AI代码调试系统</title>
+    <title>注册 - <?php echo htmlspecialchars($config['site_name'] ?? 'AI代码调试系统'); ?></title>
+    <meta name="description" content="注册AI代码调试系统账号，开始使用专业的代码分析和调试服务。">
+    <meta name="keywords" content="注册,AI代码调试,代码分析,开发者工具">
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="canonical" href="<?php echo htmlspecialchars('http://' . $_SERVER['HTTP_HOST'] . '/register.php'); ?>">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <style>
         :root {
             --primary-color: #007bff;
@@ -227,6 +235,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             text-decoration: none;
         }
     </style>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
     <div class="register-container">
@@ -271,7 +280,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <p>使用邀请码可获得50初始积分！</p>
                     <input type="text" name="invite_code" placeholder="请输入邀请码">
                 </div>
-                
+
+                <div class="form-group">
+                    <div class="cf-turnstile" data-sitekey="<?php echo htmlspecialchars(getConfigValue(getConfig(), 'turnstile_site_key')); ?>"></div>
+                </div>
+
                 <button type="submit" class="btn btn-primary">注册账户</button>
             </form>
             

@@ -59,6 +59,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $update_branch = trim($_POST['update_branch']);
         $announcement_enabled = isset($_POST['announcement_enabled']) ? trim($_POST['announcement_enabled']) : '0';
         $announcement_text = trim($_POST['announcement_text']);
+        $turnstile_site_key = trim($_POST['turnstile_site_key']);
+        $turnstile_secret_key = trim($_POST['turnstile_secret_key']);
 
         $config = getConfig();
         $config['site_name'] = $site_name;
@@ -70,11 +72,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $config['update_branch'] = $update_branch;
         $config['announcement_enabled'] = $announcement_enabled;
         $config['announcement_text'] = $announcement_text;
+        $config['turnstile_site_key'] = $turnstile_site_key;
+        $config['turnstile_secret_key'] = $turnstile_secret_key;
 
         if (saveConfig($config)) {
             setMessage("系统设置保存成功", 'success');
         } else {
             setMessage("系统设置保存失败", 'error');
+        }
+    }
+
+
+    if (isset($_POST['save_seo_config'])) {
+        $seo_keywords = trim($_POST['seo_keywords']);
+        $seo_description = trim($_POST['seo_description']);
+        $seo_author = trim($_POST['seo_author']);
+        $seo_copyright = trim($_POST['seo_copyright']);
+        $seo_robots = trim($_POST['seo_robots']);
+        $seo_og_title = trim($_POST['seo_og_title']);
+        $seo_og_description = trim($_POST['seo_og_description']);
+        $seo_og_image = trim($_POST['seo_og_image']);
+
+        $config = getConfig();
+        $config['seo_keywords'] = $seo_keywords;
+        $config['seo_description'] = $seo_description;
+        $config['seo_author'] = $seo_author;
+        $config['seo_copyright'] = $seo_copyright;
+        $config['seo_robots'] = $seo_robots;
+        $config['seo_og_title'] = $seo_og_title;
+        $config['seo_og_description'] = $seo_og_description;
+        $config['seo_og_image'] = $seo_og_image;
+
+        if (saveConfig($config)) {
+            setMessage("SEO配置保存成功", 'success');
+        } else {
+            setMessage("SEO配置保存失败", 'error');
         }
     }
 
@@ -201,8 +233,13 @@ $signin_reward = isset($config['signin_reward']) ? $config['signin_reward'] : 50
 $invite_reward = isset($config['invite_reward']) ? $config['invite_reward'] : 100;
 $announcement_enabled = isset($config['announcement_enabled']) ? $config['announcement_enabled'] : '0';
 $announcement_text = isset($config['announcement_text']) ? $config['announcement_text'] : '';
+$announcement_modal_enabled = $announcement_enabled;
+$announcement_modal_title = '系统公告';
+$announcement_modal_content = $announcement_text;
 $update_repo = isset($config['update_repo']) ? $config['update_repo'] : 'Gaozx1/aidebug';
 $update_branch = isset($config['update_branch']) ? $config['update_branch'] : 'main';
+$turnstile_site_key = isset($config['turnstile_site_key']) ? $config['turnstile_site_key'] : '';
+$turnstile_secret_key = isset($config['turnstile_secret_key']) ? $config['turnstile_secret_key'] : '';
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -254,6 +291,7 @@ $update_branch = isset($config['update_branch']) ? $config['update_branch'] : 'm
                 <button class="tab-button active" onclick="switchTab('api-tab', event)">API配置</button>
                 <button class="tab-button" onclick="switchTab('smtp-tab', event)">Resend配置</button>
                 <button class="tab-button" onclick="switchTab('system-tab', event)">系统设置</button>
+                <button class="tab-button" onclick="switchTab('seo-tab', event)">SEO配置</button>
                 <button class="tab-button" onclick="switchTab('update-tab', event)">系统更新</button>
                 <button class="tab-button" onclick="switchTab('redeem-tab', event)">兑换码管理</button>
                 <button class="tab-button" onclick="switchTab('users-tab', event)">用户管理</button>
@@ -396,6 +434,31 @@ $update_branch = isset($config['update_branch']) ? $config['update_branch'] : 'm
                         <textarea id="announcement_text" name="announcement_text" rows="3" placeholder="请输入公告内容"><?php echo htmlspecialchars($announcement_text); ?></textarea>
                     </div>
 
+                    <div class="form-group">
+                        <label for="turnstile_site_key">Cloudflare Turnstile 站点密钥</label>
+                        <input type="text" id="turnstile_site_key" name="turnstile_site_key" value="<?php echo htmlspecialchars($turnstile_site_key); ?>" placeholder="0x...">
+                        <small>从 Cloudflare Turnstile 获取</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="turnstile_secret_key">Cloudflare Turnstile 秘密密钥</label>
+                        <input type="password" id="turnstile_secret_key" name="turnstile_secret_key" value="<?php echo htmlspecialchars($turnstile_secret_key); ?>" placeholder="0x...">
+                        <small>从 Cloudflare Turnstile 获取，请妥善保管</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="announcement_enabled">启用系统公告（公告弹窗）</label>
+                        <select id="announcement_enabled" name="announcement_enabled" required>
+                            <option value="0" <?php echo $announcement_enabled === '0' ? 'selected' : ''; ?>>关闭</option>
+                            <option value="1" <?php echo $announcement_enabled === '1' ? 'selected' : ''; ?>>开启</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="announcement_text">系统公告内容</label>
+                        <textarea id="announcement_text" name="announcement_text" rows="3" placeholder="请输入公告内容"><?php echo htmlspecialchars($announcement_text); ?></textarea>
+                    </div>
+
                     <div class="form-group" style="grid-column: 1 / -1;">
                         <button type="submit" name="save_system_config" class="btn btn-primary">保存系统设置</button>
                     </div>
@@ -409,6 +472,81 @@ $update_branch = isset($config['update_branch']) ? $config['update_branch'] : 'm
                         <li><strong>单次分析消耗</strong>: 用户每次代码分析需要消耗的积分</li>
                         <li><strong>每日签到奖励</strong>: 用户每日签到获得的积分</li>
                         <li><strong>邀请好友奖励</strong>: 成功邀请好友后获得的积分</li>
+                        <li><strong>Cloudflare Turnstile</strong>: 配置验证码密钥，保护表单免受机器人攻击</li>
+                        <li><strong>公告弹窗</strong>: 配置公告内容，每次访问显示，可设置24小时内不提醒</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- SEO配置 -->
+            <div id="seo-tab" class="tab-content">
+                <h3>SEO配置</h3>
+                <p>配置搜索引擎优化参数，提升网站在搜索引擎中的排名。</p>
+
+                <form method="POST" class="config-form">
+                    <div class="form-group">
+                        <label for="seo_keywords">关键词 <small style="color: #666;">(多个关键词用逗号分隔)</small></label>
+                        <input type="text" id="seo_keywords" name="seo_keywords" value="<?php echo htmlspecialchars(getConfigValue($config, 'seo_keywords') ?: 'AI代码调试,代码分析,编程助手,代码优化'); ?>" placeholder="AI代码调试,代码分析,编程助手,代码优化">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="seo_description">网站描述</label>
+                        <textarea id="seo_description" name="seo_description" rows="3" placeholder="专业的AI代码调试系统，提供智能代码分析和优化建议"><?php echo htmlspecialchars(getConfigValue($config, 'seo_description') ?: '专业的AI代码调试系统，提供智能代码分析和优化建议'); ?></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="seo_author">网站作者</label>
+                        <input type="text" id="seo_author" name="seo_author" value="<?php echo htmlspecialchars(getConfigValue($config, 'seo_author') ?: 'AI代码调试系统'); ?>" placeholder="AI代码调试系统">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="seo_copyright">版权信息</label>
+                        <input type="text" id="seo_copyright" name="seo_copyright" value="<?php echo htmlspecialchars(getConfigValue($config, 'seo_copyright') ?: 'Copyright © 2024 AI代码调试系统'); ?>" placeholder="Copyright © 2024 AI代码调试系统">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="seo_robots">搜索引擎抓取规则</label>
+                        <select id="seo_robots" name="seo_robots">
+                            <option value="index, follow" <?php echo (getConfigValue($config, 'seo_robots') === 'index, follow') ? 'selected' : ''; ?>>允许索引和跟踪链接</option>
+                            <option value="noindex, nofollow" <?php echo (getConfigValue($config, 'seo_robots') === 'noindex, nofollow') ? 'selected' : ''; ?>>禁止索引和跟踪链接</option>
+                            <option value="index, nofollow" <?php echo (getConfigValue($config, 'seo_robots') === 'index, nofollow') ? 'selected' : ''; ?>>允许索引但禁止跟踪链接</option>
+                            <option value="noindex, follow" <?php echo (getConfigValue($config, 'seo_robots') === 'noindex, follow') ? 'selected' : ''; ?>>禁止索引但允许跟踪链接</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <h4>Open Graph 社交媒体分享配置</h4>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="seo_og_title">分享标题</label>
+                        <input type="text" id="seo_og_title" name="seo_og_title" value="<?php echo htmlspecialchars(getConfigValue($config, 'seo_og_title') ?: getConfigValue($config, 'site_name') ?: 'AI代码调试系统'); ?>" placeholder="AI代码调试系统">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="seo_og_description">分享描述</label>
+                        <textarea id="seo_og_description" name="seo_og_description" rows="2" placeholder="专业的AI代码调试系统，提供智能代码分析和优化建议"><?php echo htmlspecialchars(getConfigValue($config, 'seo_og_description') ?: getConfigValue($config, 'site_description') ?: '专业的AI代码调试系统，提供智能代码分析和优化建议'); ?></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="seo_og_image">分享图片URL</label>
+                        <input type="text" id="seo_og_image" name="seo_og_image" value="<?php echo htmlspecialchars(getConfigValue($config, 'seo_og_image') ?: ''); ?>" placeholder="https://example.com/og-image.jpg">
+                    </div>
+                    
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <button type="submit" name="save_seo_config" class="btn btn-primary">保存SEO配置</button>
+                    </div>
+                </form>
+                
+                <div class="test-section">
+                    <h4>💡 SEO配置说明</h4>
+                    <ul>
+                        <li><strong>关键词</strong>: 搜索引擎优化关键词，用逗号分隔</li>
+                        <li><strong>网站描述</strong>: 搜索引擎显示的网站描述</li>
+                        <li><strong>网站作者</strong>: 网站作者或所有者信息</li>
+                        <li><strong>版权信息</strong>: 网站版权声明</li>
+                        <li><strong>搜索引擎抓取规则</strong>: 控制搜索引擎如何索引网站</li>
+                        <li><strong>Open Graph配置</strong>: 社交媒体分享时的显示信息</li>
                     </ul>
                 </div>
             </div>

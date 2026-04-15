@@ -1,0 +1,206 @@
+<?php
+require_once 'config.php';
+require_once 'components/styles.php';
+
+$config = getConfig();
+$site_name = $config['site_name'] ?? 'AI 代码调试系统';
+?>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网站地图 - <?php echo htmlspecialchars($site_name); ?></title>
+    <meta name="description" content="网站地图 - 浏览<?php echo htmlspecialchars($site_name); ?>的所有页面">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="<?php echo htmlspecialchars('http://' . $_SERVER['HTTP_HOST'] . '/sitemap.html'); ?>">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <?php renderStyles(); ?>
+    <style>
+        .sitemap-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .sitemap-section {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+            margin-bottom: 30px;
+        }
+
+        .dark-mode .sitemap-section {
+            background: var(--dark-bg);
+            color: var(--text-light);
+        }
+
+        .sitemap-section h2 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            border-left: 3px solid var(--primary-color);
+            padding-left: 15px;
+        }
+
+        .sitemap-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .sitemap-list li {
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+
+        .sitemap-list li:hover {
+            background: var(--light-bg);
+            border-color: var(--primary-color);
+        }
+
+        .dark-mode .sitemap-list li:hover {
+            background: var(--dark-bg);
+        }
+
+        .sitemap-list a {
+            text-decoration: none;
+            color: var(--text-dark);
+            display: block;
+        }
+
+        .dark-mode .sitemap-list a {
+            color: var(--text-light);
+        }
+
+        .sitemap-list a:hover {
+            color: var(--primary-color);
+        }
+
+        .page-info {
+            font-size: 0.9em;
+            color: var(--text-dark);
+            margin-top: 5px;
+        }
+
+        .dark-mode .page-info {
+            color: var(--text-light);
+        }
+
+        .priority-high { border-left: 4px solid var(--success-color); }
+        .priority-medium { border-left: 4px solid var(--warning-color); }
+        .priority-low { border-left: 4px solid var(--info-color); }
+    </style>
+</head>
+<body>
+    <div class="sitemap-container">
+        <h1>网站地图</h1>
+        <p>浏览<?php echo htmlspecialchars($site_name); ?>的所有页面和功能。</p>
+
+        <div class="sitemap-section">
+            <h2>主要页面</h2>
+            <ul class="sitemap-list">
+                <li class="priority-high">
+                    <a href="index.php">
+                        <strong>首页</strong>
+                        <div class="page-info">网站首页，介绍系统功能</div>
+                    </a>
+                </li>
+                <li class="priority-medium">
+                    <a href="login.php">
+                        <strong>登录</strong>
+                        <div class="page-info">用户登录页面</div>
+                    </a>
+                </li>
+                <li class="priority-medium">
+                    <a href="register.php">
+                        <strong>注册</strong>
+                        <div class="page-info">新用户注册页面</div>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <div class="sitemap-section">
+            <h2>用户功能</h2>
+            <ul class="sitemap-list">
+                <li class="priority-low">
+                    <a href="dashboard.php">
+                        <strong>控制台</strong>
+                        <div class="page-info">用户控制台，提交代码调试请求</div>
+                    </a>
+                </li>
+                <li class="priority-low">
+                    <a href="signin.php">
+                        <strong>每日签到</strong>
+                        <div class="page-info">每日签到获取积分</div>
+                    </a>
+                </li>
+                <li class="priority-low">
+                    <a href="invite.php">
+                        <strong>邀请好友</strong>
+                        <div class="page-info">邀请系统，赚取积分奖励</div>
+                    </a>
+                </li>
+                <li class="priority-low">
+                    <a href="redeem.php">
+                        <strong>积分兑换</strong>
+                        <div class="page-info">使用积分兑换奖励</div>
+                    </a>
+                </li>
+                <li class="priority-low">
+                    <a href="records.php">
+                        <strong>调试记录</strong>
+                        <div class="page-info">查看历史调试记录</div>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <div class="sitemap-section">
+            <h2>管理功能</h2>
+            <ul class="sitemap-list">
+                <li class="priority-low">
+                    <a href="admin.php">
+                        <strong>管理后台</strong>
+                        <div class="page-info">管理员控制面板</div>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <div class="sitemap-section">
+            <h2>其他</h2>
+            <ul class="sitemap-list">
+                <li class="priority-low">
+                    <a href="status.php">
+                        <strong>系统状态</strong>
+                        <div class="page-info">API监控和系统状态</div>
+                    </a>
+                </li>
+                <li class="priority-low">
+                    <a href="sitemap.php">
+                        <strong>XML网站地图</strong>
+                        <div class="page-info">供搜索引擎使用的XML格式网站地图</div>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // 深色模式切换
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+        }
+
+        // 加载深色模式设置
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.body.classList.add('dark-mode');
+        }
+    </script>
+</body>
+</html>

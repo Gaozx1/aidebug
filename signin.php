@@ -1,6 +1,8 @@
 <?php
 
 require_once 'config.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'components' . DIRECTORY_SEPARATOR . 'sidebar.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'components' . DIRECTORY_SEPARATOR . 'styles.php';
 
 session_start();
 if (!isset($_SESSION['user_id'])) {
@@ -9,6 +11,15 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['signin'])) {
+    $turnstile_token = $_POST['cf-turnstile-response'] ?? '';
+
+    // 验证验证码
+    if (!verifyTurnstile($turnstile_token)) {
+        setMessage('验证码验证失败，请重试', 'error');
+        header('Location: signin.php');
+        exit;
+    }
+
     $config = getConfig();
     $signin_reward = isset($config['signin_reward']) ? (int)$config['signin_reward'] : 50;
 
@@ -32,32 +43,21 @@ $already_signed = isset($users[$_SESSION['user_id']]['last_signin']) &&
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>每日签到 - AI代码调试系统</title>
+    <?php renderStyles(); ?>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
-            line-height: 1.6;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .signin-page {
+            max-width: 720px;
+            margin: 0 auto;
         }
 
         .signin-container {
             background: white;
             padding: 40px;
             border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            text-align: center;
-            max-width: 400px;
-            width: 90%;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            max-width: 600px;
+            width: 100%;
+            margin: 0 auto;
         }
 
         .signin-header h1 {
@@ -81,34 +81,6 @@ $already_signed = isset($users[$_SESSION['user_id']]['last_signin']) &&
             color: #28a745;
             font-size: 24px;
             margin-bottom: 10px;
-        }
-
-        .btn {
-            padding: 12px 30px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            text-decoration: none;
-            font-size: 16px;
-            transition: all 0.3s;
-            display: inline-block;
-            width: 100%;
-        }
-
-        .btn-primary {
-            background: #28a745;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #218838;
-            transform: translateY(-2px);
-        }
-
-        .btn-primary:disabled {
-            background: #6c757d;
-            cursor: not-allowed;
-            transform: none;
         }
 
         .user-info {
@@ -136,14 +108,24 @@ $already_signed = isset($users[$_SESSION['user_id']]['last_signin']) &&
             border-color: #dc3545;
             color: #721c24;
         }
+
+        @media (max-width: 768px) {
+            .signin-container {
+                padding: 30px;
+            }
+        }
     </style>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
-<body>
-    <div class="signin-container">
-        <div class="signin-header">
-            <h1>每日签到</h1>
-            <p>坚持签到，获取更多积分</p>
-        </div>
+<body class="">
+    <?php renderSidebar('signin'); ?>
+    <div class="main-content">
+        <div class="signin-page">
+            <div class="signin-container">
+                <div class="signin-header">
+                    <h1>每日签到</h1>
+                    <p>坚持签到，获取更多积分</p>
+                </div>
 
         <?php if (isset($_SESSION['message'])): ?>
             <div class="message <?php echo $_SESSION['message_type']; ?>">
@@ -162,6 +144,9 @@ $already_signed = isset($users[$_SESSION['user_id']]['last_signin']) &&
                 <button type="button" class="btn btn-primary" disabled>今日已签到</button>
                 <p style="margin-top: 10px; color: #666;">明天再来获取积分吧！</p>
             <?php else: ?>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <div class="cf-turnstile" data-sitekey="<?php echo htmlspecialchars(getConfigValue(getConfig(), 'turnstile_site_key')); ?>"></div>
+                </div>
                 <button type="submit" name="signin" class="btn btn-primary">立即签到</button>
             <?php endif; ?>
         </form>
@@ -174,6 +159,7 @@ $already_signed = isset($users[$_SESSION['user_id']]['last_signin']) &&
         <div style="margin-top: 20px;">
             <a href="dashboard.php" style="color: #007bff; text-decoration: none;">返回控制台</a>
         </div>
+    </div>
     </div>
 </body>
 </html>
