@@ -24,8 +24,8 @@ body:
     description: "清晰描述你希望添加的新功能是什么。"
     placeholder: |
       例如：希望在调试界面增加一个「变量监视器」面板，可以实时查看变量的值变化。
-    validations:
-      required: true
+  validations:
+    required: true
 
 - type: textarea
   id: "yml-3"
@@ -35,8 +35,8 @@ body:
     placeholder: |
       1.xxx
       2.xxx
-    validations:
-      required: true
+  validations:
+    required: true
 
 - type: dropdown
   id: "yml-4"
@@ -58,8 +58,8 @@ body:
     placeholder: |
       先点击这个文本框，再将截图拖拽进来上传。
       例如：Chrome DevTools 的 Watch 面板、VS Code 的调试变量区等。
-    validations:
-      required: false
+  validations:
+    required: false
 
 - type: textarea
   id: "yml-6"
@@ -68,5 +68,5 @@ body:
     description: "任何其他想说的内容。"
     placeholder: |
       比如：我可以帮忙测试原型版本，或者我已经有初步的实现思路。
-    validations:
-      required: false
+  validations:
+    required: false
