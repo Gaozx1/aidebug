@@ -12,6 +12,15 @@ define('RECORDS_FILE', DATA_DIR . '/records.json');
 define('CONFIG_FILE', DATA_DIR . '/config.json');
 
 
+// 设置会话过期时间为一周
+function configureSession() {
+    if (session_status() === PHP_SESSION_NONE) {
+        ini_set('session.gc_maxlifetime', 604800); // 7天
+        ini_set('session.cookie_lifetime', 604800); // 7天
+    }
+}
+
+
 define('ADMIN_USERNAME', 'admin');
 define('ADMIN_PASSWORD', '123456');
 define('SITE_NAME', 'AI代码调试系统');
@@ -31,6 +40,8 @@ function initDataFiles() {
             'username' => ADMIN_USERNAME,
             'password' => hashPassword(ADMIN_PASSWORD),
             'email' => '',
+            'display_name' => '管理员',
+            'avatar_url' => '',
             'points' => 1000,
             'is_admin' => true,
             'created_at' => date('Y-m-d H:i:s'),
@@ -65,7 +76,12 @@ function initDataFiles() {
         'update_repo' => 'Gaozx1/aidebug',
         'update_branch' => 'main',
         'turnstile_site_key' => 'your_site_key_here',  // 添加：Cloudflare Turnstile 站点密钥
-        'turnstile_secret_key' => 'your_secret_key_here'  // 添加：Cloudflare Turnstile 秘密密钥
+        'turnstile_secret_key' => 'your_secret_key_here',  // 添加：Cloudflare Turnstile 秘密密钥
+        'email_enabled' => '0',
+        'indexnow_enabled' => '0',  // IndexNow 快速索引功能
+        'github_client_id' => '',
+        'github_client_secret' => '',
+        'github_redirect_uri' => 'http://debug.mcapple.top/oauth_callback.php?provider=github'
     ];
     
     if (!file_exists(CONFIG_FILE)) {
@@ -112,11 +128,110 @@ function getUsers() {
     return loadEncryptedData(USERS_FILE);
 }
 
-
 function saveUsers($users) {
     return saveEncryptedData(USERS_FILE, $users);
 }
 
+function findUserByUsername($username) {
+    $users = getUsers();
+    foreach ($users as $id => $user) {
+        if (isset($user['username']) && $user['username'] === $username) {
+            return [$id, $user];
+        }
+    }
+    return [null, null];
+}
+
+function findUserByEmail($email) {
+    if (empty($email)) {
+        return [null, null];
+    }
+    $users = getUsers();
+    foreach ($users as $id => $user) {
+        if (!empty($user['email']) && strcasecmp($user['email'], $email) === 0) {
+            return [$id, $user];
+        }
+    }
+    return [null, null];
+}
+
+function findUserByOAuth($provider, $oauth_id) {
+    $users = getUsers();
+    foreach ($users as $id => $user) {
+        $bound_providers = $user['oauth_bindings'] ?? [];
+        if (isset($bound_providers[$provider]) && $bound_providers[$provider] === $oauth_id) {
+            return [$id, $user];
+        }
+        // 向后兼容旧数据结构
+        if (isset($user['oauth_provider'], $user['oauth_id']) && $user['oauth_provider'] === $provider && $user['oauth_id'] === $oauth_id) {
+            return [$id, $user];
+        }
+    }
+    return [null, null];
+}
+
+function createUniqueUsername($base) {
+    $base = preg_replace('/[^a-z0-9]+/i', '_', trim(strtolower($base)));
+    if ($base === '') {
+        $base = 'user';
+    }
+    $users = getUsers();
+    $candidate = $base;
+    $suffix = 1;
+    while (true) {
+        $exists = false;
+        foreach ($users as $user) {
+            if (isset($user['username']) && $user['username'] === $candidate) {
+                $exists = true;
+                break;
+            }
+        }
+        if (!$exists) {
+            return $candidate;
+        }
+        $candidate = $base . '_' . $suffix++;
+    }
+}
+
+function createOAuthUser($provider, $oauth_id, $username, $email = '', $display_name = '', $avatar_url = '') {
+    $users = getUsers();
+    $username = createUniqueUsername($username ?: $provider . '_' . $oauth_id);
+    $newUser = [
+        'username' => $username,
+        'password' => '',
+        'email' => $email,
+        'display_name' => $display_name ?: $username,
+        'avatar_url' => $avatar_url,
+        'points' => 100,
+        'is_admin' => false,
+        'created_at' => date('Y-m-d H:i:s'),
+        'last_login' => date('Y-m-d H:i:s'),
+        'invite_code' => '',
+        'invited_by' => '',
+        'signin_streak' => 0,
+        'last_signin' => '',
+        'total_signins' => 0,
+        'oauth_bindings' => [
+            $provider => $oauth_id
+        ]
+    ];
+    $userId = generateId();
+    $users[$userId] = $newUser;
+    saveUsers($users);
+    return [$userId, $newUser];
+}
+
+function updateUserLastLogin($username) {
+    $users = getUsers();
+    foreach ($users as $id => $user) {
+        if (isset($user['username']) && $user['username'] === $username) {
+            $users[$id]['last_login'] = date('Y-m-d H:i:s');
+            saveUsers($users);
+            return true;
+        }
+    }
+    return false;
+}
 
 function getRecords() {
     return loadEncryptedData(RECORDS_FILE);
@@ -486,9 +601,13 @@ function markdownToHtml($markdown) {
     }, $markdown);
 
 
+    $markdown = preg_replace('/^#### (.*)$/m', '<h4>$1</h4>', $markdown);
     $markdown = preg_replace('/^### (.*)$/m', '<h3>$1</h3>', $markdown);
     $markdown = preg_replace('/^## (.*)$/m', '<h2>$1</h2>', $markdown);
     $markdown = preg_replace('/^# (.*)$/m', '<h1>$1</h1>', $markdown);
+    
+    // 处理分隔线 ---
+    $markdown = preg_replace('/^---+$/m', '<hr>', $markdown);
     $markdown = preg_replace('/^\* (.*)$/m', '<li>$1</li>', $markdown);
     $markdown = preg_replace('/^- (.*)$/m', '<li>$1</li>', $markdown);
     $markdown = preg_replace('/^(\d+)\. (.*)$/m', '<li>$1. $2</li>', $markdown);
@@ -734,8 +853,31 @@ function deductAnalysisPointsByCode($username, $code) {
 function addSigninPoints($username) {
     $config = getConfig();
     $reward = getConfigValue($config, 'signin_reward', 50);
-    $userPoints = getUserPoints($username);
-    return updateUserPoints($username, $userPoints + $reward);
+    $today = date('Y-m-d');
+    $yesterday = date('Y-m-d', strtotime('-1 day'));
+    $users = getUsers();
+
+    foreach ($users as $id => $user) {
+        if (isset($user['username']) && $user['username'] === $username) {
+            if (isset($user['last_signin']) && $user['last_signin'] === $today) {
+                return false;
+            }
+
+            $users[$id]['points'] = ($user['points'] ?? 0) + $reward;
+            $users[$id]['last_signin'] = $today;
+            $users[$id]['total_signins'] = ($user['total_signins'] ?? 0) + 1;
+
+            if (isset($user['last_signin']) && $user['last_signin'] === $yesterday) {
+                $users[$id]['signin_streak'] = ($user['signin_streak'] ?? 0) + 1;
+            } else {
+                $users[$id]['signin_streak'] = 1;
+            }
+
+            return saveUsers($users);
+        }
+    }
+
+    return false;
 }
 
 
@@ -915,4 +1057,77 @@ function verifyTurnstile($token) {
 
     $response = json_decode($result, true);
     return isset($response['success']) && $response['success'];
+}
+
+function submitToIndexNow($urls) {
+    if (!is_array($urls)) {
+        $urls = [$urls];
+    }
+
+    $config = getConfig();
+    $indexnow_enabled = getConfigValue($config, 'indexnow_enabled', '0');
+
+    if ($indexnow_enabled !== '1') {
+        return false;
+    }
+
+    $key = 'aidebug-indexnow-key-2026';
+    $keyLocation = 'http://' . $_SERVER['HTTP_HOST'] . '/' . $key . '.txt';
+
+    $data = [
+        'host' => $_SERVER['HTTP_HOST'],
+        'key' => $key,
+        'keyLocation' => $keyLocation,
+        'urlList' => $urls
+    ];
+
+    // 使用curl发送JSON POST请求
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, 'https://www.bing.com/indexnow');
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json; charset=utf-8',
+        'Host: www.bing.com'
+    ]);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+
+    curl_close($ch);
+
+    if ($error) {
+        return false;
+    }
+
+    // 同时提交到Yandex
+    $ch2 = curl_init();
+    curl_setopt($ch2, CURLOPT_URL, 'https://yandex.com/indexnow');
+    curl_setopt($ch2, CURLOPT_POST, true);
+    curl_setopt($ch2, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($ch2, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json; charset=utf-8',
+        'Host: yandex.com'
+    ]);
+    curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch2, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch2, CURLOPT_TIMEOUT, 30);
+
+    curl_exec($ch2);
+    curl_close($ch2);
+
+    // 记录日志
+    $log_file = DATA_DIR . '/indexnow.log';
+    $log_entry = date('Y-m-d H:i:s') . ' - Submitted ' . count($urls) . ' URLs to IndexNow: ' . implode(', ', $urls) . "\n";
+    file_put_contents($log_file, $log_entry, FILE_APPEND);
+
+    return $http_code == 200;
+}
+
+function submitUrlToIndexNow($url) {
+    return submitToIndexNow([$url]);
 }?>

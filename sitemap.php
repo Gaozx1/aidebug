@@ -1,8 +1,8 @@
 <?php
 header('Content-Type: application/xml; charset=utf-8');
 
-// 获取域名
-$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+// 强制使用 HTTPS
+$protocol = 'https';
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $base_url = $protocol . '://' . $host;
 

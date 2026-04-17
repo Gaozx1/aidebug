@@ -1,7 +1,8 @@
 
 <?php
-session_start();
 require_once 'config.php';
+configureSession();
+session_start();
 require_once 'components/styles.php';
 
 initDataFiles();

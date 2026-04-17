@@ -1,10 +1,10 @@
 <?php
-session_start();
 require_once 'config.php';
-
+configureSession();
+session_start();
 
 initDataFiles();
-
+$config = getConfig();
 
 if (isset($_SESSION['user_id'])) {
     header('Location: dashboard.php');
@@ -148,6 +148,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .btn:hover {
             background-color: #0056b3;
         }
+
+        .oauth-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .oauth-btn {
+            flex: 1;
+            text-align: center;
+            display: inline-block;
+            padding: 12px;
+            border-radius: 5px;
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .oauth-btn.github {
+            background: #24292f;
+        }
+
+        .oauth-btn:hover {
+            opacity: 0.9;
+        }
         
         .error {
             color: #dc3545;
@@ -203,6 +228,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <button type="submit" class="btn">登录</button>
         </form>
+
+        <div style="text-align: right; margin-top: 10px;">
+            <a href="forgot_password.php">忘记密码？</a>
+        </div>
+
+        <div class="oauth-buttons">
+            <a class="oauth-btn github" href="oauth_start.php?provider=github">使用 GitHub 登录</a>
+        </div>
         
         <div class="links">
             <a href="register.php">还没有账号？立即注册</a> | 

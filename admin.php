@@ -1,6 +1,7 @@
 <?php
 
 require_once 'config.php';
+configureSession();
 
 require_once 'components/sidebar.php';
 require_once 'components/styles.php';
@@ -61,6 +62,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $announcement_text = trim($_POST['announcement_text']);
         $turnstile_site_key = trim($_POST['turnstile_site_key']);
         $turnstile_secret_key = trim($_POST['turnstile_secret_key']);
+        $github_client_id = trim($_POST['github_client_id']);
+        $github_client_secret = trim($_POST['github_client_secret']);
+        $github_redirect_uri = trim($_POST['github_redirect_uri']);
+        $indexnow_enabled = isset($_POST['indexnow_enabled']) ? trim($_POST['indexnow_enabled']) : '0';
 
         $config = getConfig();
         $config['site_name'] = $site_name;
@@ -74,6 +79,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $config['announcement_text'] = $announcement_text;
         $config['turnstile_site_key'] = $turnstile_site_key;
         $config['turnstile_secret_key'] = $turnstile_secret_key;
+        $config['github_client_id'] = $github_client_id;
+        $config['github_client_secret'] = $github_client_secret;
+        $config['github_redirect_uri'] = $github_redirect_uri;
+        $config['indexnow_enabled'] = $indexnow_enabled;
 
         if (saveConfig($config)) {
             setMessage("系统设置保存成功", 'success');
@@ -238,8 +247,12 @@ $announcement_modal_title = '系统公告';
 $announcement_modal_content = $announcement_text;
 $update_repo = isset($config['update_repo']) ? $config['update_repo'] : 'Gaozx1/aidebug';
 $update_branch = isset($config['update_branch']) ? $config['update_branch'] : 'main';
-$turnstile_site_key = isset($config['turnstile_site_key']) ? $config['turnstile_site_key'] : '';
-$turnstile_secret_key = isset($config['turnstile_secret_key']) ? $config['turnstile_secret_key'] : '';
+$turnstile_site_key = getConfigValue($config, 'turnstile_site_key', '');
+$turnstile_secret_key = getConfigValue($config, 'turnstile_secret_key', '');
+$github_client_id = getConfigValue($config, 'github_client_id', '');
+$github_client_secret = getConfigValue($config, 'github_client_secret', '');
+$github_redirect_uri = getConfigValue($config, 'github_redirect_uri', '');
+$indexnow_enabled = getConfigValue($config, 'indexnow_enabled', '0');
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -447,6 +460,20 @@ $turnstile_secret_key = isset($config['turnstile_secret_key']) ? $config['turnst
                     </div>
 
                     <div class="form-group">
+                        <label for="github_client_id">GitHub Client ID</label>
+                        <input type="text" id="github_client_id" name="github_client_id" value="<?php echo htmlspecialchars($github_client_id); ?>" placeholder="GitHub OAuth Client ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="github_client_secret">GitHub Client Secret</label>
+                        <input type="password" id="github_client_secret" name="github_client_secret" value="<?php echo htmlspecialchars($github_client_secret); ?>" placeholder="GitHub OAuth Client Secret">
+                    </div>
+                    <div class="form-group">
+                        <label for="github_redirect_uri">GitHub 回调地址</label>
+                        <input type="text" id="github_redirect_uri" name="github_redirect_uri" value="<?php echo htmlspecialchars($github_redirect_uri); ?>" placeholder="http://yourdomain/oauth_callback.php?provider=github">
+                        <small>请在 GitHub OAuth 应用中配置该回调地址</small>
+                    </div>
+
+                    <div class="form-group">
                         <label for="announcement_enabled">启用系统公告（公告弹窗）</label>
                         <select id="announcement_enabled" name="announcement_enabled" required>
                             <option value="0" <?php echo $announcement_enabled === '0' ? 'selected' : ''; ?>>关闭</option>
@@ -457,6 +484,15 @@ $turnstile_secret_key = isset($config['turnstile_secret_key']) ? $config['turnst
                     <div class="form-group">
                         <label for="announcement_text">系统公告内容</label>
                         <textarea id="announcement_text" name="announcement_text" rows="3" placeholder="请输入公告内容"><?php echo htmlspecialchars($announcement_text); ?></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="indexnow_enabled">启用 IndexNow 快速索引</label>
+                        <select id="indexnow_enabled" name="indexnow_enabled" required>
+                            <option value="0" <?php echo $indexnow_enabled === '0' ? 'selected' : ''; ?>>关闭</option>
+                            <option value="1" <?php echo $indexnow_enabled === '1' ? 'selected' : ''; ?>>开启</option>
+                        </select>
+                        <small>启用后，新内容会自动提交给 Bing 和 Yandex 进行快速索引</small>
                     </div>
 
                     <div class="form-group" style="grid-column: 1 / -1;">
@@ -474,6 +510,7 @@ $turnstile_secret_key = isset($config['turnstile_secret_key']) ? $config['turnst
                         <li><strong>邀请好友奖励</strong>: 成功邀请好友后获得的积分</li>
                         <li><strong>Cloudflare Turnstile</strong>: 配置验证码密钥，保护表单免受机器人攻击</li>
                         <li><strong>公告弹窗</strong>: 配置公告内容，每次访问显示，可设置24小时内不提醒</li>
+                        <li><strong>IndexNow 快速索引</strong>: 启用后，新内容会自动提交给 Bing 和 Yandex 进行快速索引</li>
                     </ul>
                 </div>
             </div>

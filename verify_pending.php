@@ -1,6 +1,7 @@
 <?php
-session_start();
 require_once 'config.php';
+configureSession();
+session_start();
 
 
 initDataFiles();

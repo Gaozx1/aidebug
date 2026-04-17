@@ -6,6 +6,16 @@ function renderSidebar($current_page = '') {
     $is_admin = $_SESSION['is_admin'] ?? false;
     $points = getUserPoints($user_id);
 
+    // 获取用户完整数据
+    $users = getUsers();
+    $user = null;
+    foreach ($users as $u) {
+        if ($u['username'] === $user_id) {
+            $user = $u;
+            break;
+        }
+    }
+
     $config = getConfig();
     $site_name = $config['site_name'] ?? 'AI 代码调试系统';
 
@@ -30,8 +40,19 @@ function renderSidebar($current_page = '') {
                 <h1><?php echo htmlspecialchars($site_name); ?></h1>
             </div>
             <div class="user-info">
-                <p>欢迎，<?php echo htmlspecialchars($username); ?></p>
-                <div class="points-display">积分: <?php echo $points; ?></div>
+                <a href="profile.php" class="user-profile-link" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit;">
+                    <?php if ($user && !empty($user['avatar_url'])): ?>
+                        <img src="<?php echo htmlspecialchars($user['avatar_url']); ?>" alt="头像" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+                    <?php else: ?>
+                        <div style="width: 40px; height: 40px; border-radius: 50%; background: #007bff; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+                            <?php echo htmlspecialchars(substr($user['display_name'] ?? $username, 0, 1)); ?>
+                        </div>
+                    <?php endif; ?>
+                    <div>
+                        <p style="margin: 0; font-weight: bold;"><?php echo htmlspecialchars($user['display_name'] ?? $username); ?></p>
+                        <div class="points-display" style="font-size: 12px;">积分: <?php echo $points; ?></div>
+                    </div>
+                </a>
             </div>
         </div>
 
@@ -40,6 +61,7 @@ function renderSidebar($current_page = '') {
             <ul class="sidebar-nav">
                 <li><a href="signin.php" class="<?php echo $current_page === 'signin' ? 'active' : ''; ?>" style="background: white; color: #28a745; border: 2px solid #28a745; text-align: center;">每日签到</a></li>
                 <li><a href="dashboard.php" class="<?php echo $current_page === 'dashboard' ? 'active' : ''; ?>">代码调试</a></li>
+                <li><a href="profile.php" class="<?php echo $current_page === 'profile' ? 'active' : ''; ?>">个人主页</a></li>
                 <li><a href="invite.php" class="<?php echo $current_page === 'invite' ? 'active' : ''; ?>">邀请好友</a></li>
                 <li><a href="redeem.php" class="<?php echo $current_page === 'redeem' ? 'active' : ''; ?>">积分兑换</a></li>
                 <?php if ($is_admin): ?>

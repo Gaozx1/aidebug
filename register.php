@@ -1,6 +1,7 @@
 <?php
-session_start();
 require_once 'config.php';
+configureSession();
+session_start();
 
 
 initDataFiles();
@@ -77,6 +78,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ];
                     
                     if (saveUsers($users)) {
+                        // 注册成功后提交首页到IndexNow
+                        submitUrlToIndexNow('http://' . $_SERVER['HTTP_HOST'] . '/');
+
                         if (!empty($invite_code)) {
                             $success = "注册成功！使用邀请码获得50初始积分。";
                         } else {

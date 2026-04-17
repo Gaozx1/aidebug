@@ -3,6 +3,7 @@
 
 
 require_once 'config.php';
+configureSession();
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'components' . DIRECTORY_SEPARATOR . 'sidebar.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'components' . DIRECTORY_SEPARATOR . 'styles.php';
 
@@ -998,12 +999,21 @@ $site_name = getConfigValue($config, 'site_name', 'AI代码调试系统');
                 showProgress('API配置获取成功，正在创建记录...', 10);
                 
 
+                // 获取Cloudflare Turnstile验证码token
+                const turnstileToken = document.querySelector('input[name="cf-turnstile-response"]')?.value || '';
+
+                // 检查验证码是否已完成验证
+                if (!turnstileToken) {
+                    throw new Error('请完成验证码验证后再提交');
+                }
+
                 const formData = new FormData();
                 formData.append('debug_code', '1');
                 formData.append('title', title);
                 formData.append('problem', problem);
                 formData.append('code', code);
                 formData.append('evaluation_result', evaluationResult);
+                formData.append('cf-turnstile-response', turnstileToken);
                 
                 const createResponse = await fetch('dashboard.php', {
                     method: 'POST',
