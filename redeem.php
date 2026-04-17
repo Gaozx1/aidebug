@@ -300,6 +300,7 @@ if (!file_exists('components/sidebar.php')) {
 
 require_once 'components/sidebar.php';
 require_once 'components/styles.php';
+configureSession();
 
 session_start();
 if (!isset($_SESSION['user_id'])) {

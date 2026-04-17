@@ -1,7 +1,7 @@
 <?php
 
 require_once 'config.php';
-
+configureSession();
 
 
 if (!file_exists('components/sidebar.php')) {
@@ -18,11 +18,34 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_invite'])) {
-    $inviteCode = generateInviteCode($_SESSION['user_id']);
-    setMessage('邀请码生成成功：' . $inviteCode, 'success');
+    $users = getUsers();
+    $currentUser = null;
+    foreach ($users as $id => $user) {
+        if ($id === $_SESSION['user_id']) {
+            $currentUser = $user;
+            break;
+        }
+    }
+
+    if ($currentUser && empty($currentUser['invite_code'])) {
+        $inviteCode = generateInviteCode($_SESSION['user_id']);
+        setMessage('邀请码生成成功：' . $inviteCode, 'success');
+    } else {
+        setMessage('您已经有一个邀请码了，无需重复生成', 'error');
+    }
 }
 
 $inviteCodes = getUserInviteCodes($_SESSION['user_id']);
+
+// 获取用户的邀请码
+$users = getUsers();
+$userInviteCode = '';
+foreach ($users as $id => $user) {
+    if ($id === $_SESSION['user_id']) {
+        $userInviteCode = $user['invite_code'] ?? '';
+        break;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -48,50 +71,44 @@ $inviteCodes = getUserInviteCodes($_SESSION['user_id']);
             <?php unset($_SESSION['message']); unset($_SESSION['message_type']); ?>
         <?php endif; ?>
 
-        <div class="invite-section" style="background: white; padding: 30px; border-radius: 10px; box-shadow: var(--shadow); margin-bottom: 30px;">
-            <h3>🎯 邀请奖励</h3>
-            <p>每成功邀请一位好友，您将获得 <strong style="color: var(--success-color);">500积分</strong> 奖励！</p>
-
-            <div class="generate-invite" style="margin: 20px 0;">
-                <form method="POST">
-                    <button type="submit" name="generate_invite" class="btn btn-primary" style="padding: 12px 30px; font-size: 16px;">
-                        🎁 生成邀请码
-                    </button>
-                </form>
+        <div class="invite-stats" style="background: white; padding: 30px; border-radius: 10px; box-shadow: var(--shadow); margin-bottom: 30px;">
+            <h3>📊 邀请统计</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px; margin-top: 20px;">
+                <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                    <div style="font-size: 24px; font-weight: bold; color: var(--primary-color);"><?php echo count($inviteCodes); ?></div>
+                    <div style="color: #666; margin-top: 5px;">已邀请人数</div>
+                </div>
+                <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                    <div style="font-size: 24px; font-weight: bold; color: var(--success-color);"><?php echo count($inviteCodes) * 100; ?></div>
+                    <div style="color: #666; margin-top: 5px;">获得积分</div>
+                </div>
             </div>
         </div>
 
         <div class="invite-codes" style="background: white; padding: 30px; border-radius: 10px; box-shadow: var(--shadow);">
             <h3>我的邀请码</h3>
 
-            <?php if (empty($inviteCodes)): ?>
-                <p style="text-align: center; color: #666; padding: 20px;">暂无邀请码</p>
+            <?php if (empty($userInviteCode)): ?>
+                <p style="text-align: center; color: #666; padding: 20px;">您还没有生成邀请码</p>
             <?php else: ?>
-                <div class="codes-list">
-                    <?php foreach ($inviteCodes as $index => $invite): ?>
-                        <div class="code-item" style="border: 1px solid var(--border-color); border-radius: 5px; padding: 15px; margin-bottom: 15px;">
-                            <div style="display: flex; justify-content: between; align-items: center;">
-                                <div>
-                                    <strong style="font-size: 18px; color: var(--primary-color);"><?php echo $invite['code']; ?></strong>
-                                    <span style="margin-left: 10px; font-size: 12px; color: #666;">
-                                        创建时间: <?php echo $invite['created_at']; ?>
-                                    </span>
-                                </div>
-                                <div>
-                                    <span style="background: var(--success-color); color: white; padding: 5px 10px; border-radius: 15px; font-size: 12px;">
-                                        ♾️ 无限次使用
-                                    </span>
-                                    <?php if (!empty($invite['used_at']) || !empty($invite['use_count'])): ?>
-                                        <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                                            最近使用人: <?php echo htmlspecialchars($invite['used_by'] ?? ''); ?><br>
-                                            最近使用时间: <?php echo htmlspecialchars($invite['used_at'] ?? ''); ?><br>
-                                            使用次数: <?php echo intval($invite['use_count'] ?? 0); ?> 次
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
+                <div class="code-item" style="border: 1px solid var(--border-color); border-radius: 5px; padding: 20px; margin-bottom: 15px; background: #f8f9fa;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong style="font-size: 24px; color: var(--primary-color); font-family: monospace;"><?php echo $userInviteCode; ?></strong>
+                            <div style="margin-top: 10px;">
+                                <span style="background: var(--success-color); color: white; padding: 5px 10px; border-radius: 15px; font-size: 12px;">
+                                    ♾️ 无限次使用
+                                </span>
                             </div>
                         </div>
-                    <?php endforeach; ?>
+                        <div style="text-align: right;">
+                            <button onclick="copyToClipboard('<?php echo $userInviteCode; ?>')" class="btn btn-primary" style="margin-bottom: 10px;">
+                                📋 复制邀请码
+                            </button>
+                            <br>
+                            <small style="color: #666;">邀请链接：<br><?php echo htmlspecialchars('http://' . $_SERVER['HTTP_HOST'] . '/register.php?invite=' . $userInviteCode); ?></small>
+                        </div>
+                    </div>
                 </div>
             <?php endif; ?>
         </div>

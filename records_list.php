@@ -1,6 +1,7 @@
 <?php
 
 require_once 'config.php';
+configureSession();
 
 
 if (!file_exists('components/sidebar.php')) {

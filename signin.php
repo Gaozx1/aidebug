@@ -1,6 +1,7 @@
 <?php
 
 require_once 'config.php';
+configureSession();
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'components' . DIRECTORY_SEPARATOR . 'sidebar.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'components' . DIRECTORY_SEPARATOR . 'styles.php';
 
@@ -23,12 +24,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['signin'])) {
     $config = getConfig();
     $signin_reward = isset($config['signin_reward']) ? (int)$config['signin_reward'] : 50;
 
-    if (addSigninPoints($_SESSION['user_id'])) {
-        setMessage("签到成功！获得{$signin_reward}积分。", 'success');
-        header('Location: dashboard.php');
-        exit;
-    } else {
+    // 检查是否已经签到
+    $users = getUsers();
+    $today = date('Y-m-d');
+    $user_id = $_SESSION['user_id'];
+    
+    if (isset($users[$user_id]['last_signin']) && $users[$user_id]['last_signin'] === $today) {
         setMessage('今天已经签到过了，请明天再来！', 'error');
+    } else {
+        if (addSigninPoints($user_id)) {
+            setMessage("签到成功！获得{$signin_reward}积分。", 'success');
+            header('Location: dashboard.php');
+            exit;
+        } else {
+            setMessage('签到失败，请稍后重试！', 'error');
+        }
     }
 }
 
@@ -36,6 +46,10 @@ $users = getUsers();
 $today = date('Y-m-d');
 $already_signed = isset($users[$_SESSION['user_id']]['last_signin']) &&
                  $users[$_SESSION['user_id']]['last_signin'] === $today;
+
+$config = getConfig();
+$signin_reward = getConfigValue($config, 'signin_reward', 50);
+$analysis_cost = getConfigValue($config, 'analysis_cost', 30);
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -135,7 +149,7 @@ $already_signed = isset($users[$_SESSION['user_id']]['last_signin']) &&
         <?php endif; ?>
 
         <div class="points-reward">
-            <h2>+100 积分</h2>
+            <h2>+<?php echo $signin_reward; ?> 积分</h2>
             <p>每日签到奖励</p>
         </div>
 
@@ -153,7 +167,7 @@ $already_signed = isset($users[$_SESSION['user_id']]['last_signin']) &&
 
         <div class="user-info">
             <p>当前积分: <strong><?php echo getUserPoints($_SESSION['user_id']); ?></strong></p>
-            <p>每次分析消耗: <strong>30 积分</strong></p>
+            <p>每次分析消耗: <strong><?php echo $analysis_cost; ?> 积分</strong></p>
         </div>
 
         <div style="margin-top: 20px;">

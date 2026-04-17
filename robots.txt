@@ -9,4 +9,8 @@ Disallow: /data/
 Disallow: /components/
 Disallow: /mathjax/
 
-Sitemap: http://your-domain.com/sitemap.php
+Sitemap: /sitemap.php
+
+# IndexNow
+# https://www.indexnow.org/
+# IndexNow API Key: aidebug-indexnow-key.txt
