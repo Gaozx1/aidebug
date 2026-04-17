@@ -1,8 +1,7 @@
 name: "综合 Bug 反馈"
 description: "遇见了与Oler debug功能相关的 Bug"
-type: "Bug"
 body:
-- type: checkboxes
+type: checkboxes
   id: "yml-1"
   attributes:
     label: "检查项"
@@ -16,14 +15,14 @@ body:
       required: true
     - label: "我确认会详细描述我所遇到的问题，并附上日志和截图，而不是随便填点东西敷衍了事。"
       required: true
-- type: textarea
+type: textarea
   id: "yml-2"
   attributes:
     label: 描述
     description: "详细描述该 Bug 的具体表现。"
   validations:
     required: true
-- type: textarea
+type: textarea
   id: "yml-3"
   attributes:
     label: 重现步骤
@@ -34,7 +33,7 @@ body:
       2、往下滚，然后点击 xxxx
   validations:
     required: true
-- type: textarea
+type: textarea
   id: "yml-4"
   attributes:
     label: 浏览器日志
