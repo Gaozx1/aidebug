@@ -43,14 +43,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
     if (isset($_POST['save_smtp_config'])) {
+        $email_service = trim($_POST['email_service']);
         $smtp_password = trim($_POST['smtp_password']);
         $smtp_from_email = trim($_POST['smtp_from_email']);
         $smtp_from_name = trim($_POST['smtp_from_name']);
+        $smtp_host = trim($_POST['smtp_host']);
+        $smtp_port = trim($_POST['smtp_port']);
+        $smtp_username = trim($_POST['smtp_username']);
+        $smtp_secure = trim($_POST['smtp_secure']);
 
         $config = getConfig();
+        $config['email_service'] = $email_service;
         $config['smtp_password'] = $smtp_password;
         $config['smtp_from_email'] = $smtp_from_email;
         $config['smtp_from_name'] = $smtp_from_name;
+        $config['smtp_host'] = $smtp_host;
+        $config['smtp_port'] = $smtp_port;
+        $config['smtp_username'] = $smtp_username;
+        $config['smtp_secure'] = $smtp_secure;
 
         if (saveConfig($config)) {
             setMessage("邮件配置保存成功", 'success');
@@ -148,13 +158,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($to_email)) {
             setMessage("请输入测试邮箱地址", 'error');
         } else {
-            $subject = "SMTP连接测试 - AI代码调试系统";
-            $message = "这是一封SMTP连接测试邮件，发送时间: " . date('Y-m-d H:i:s');
+            $config = getConfig();
+            $email_service = getConfigValue($config, 'email_service', 'resend');
+            $service_name = $email_service === 'resend' ? 'Resend API' : 'SMTP服务器';
+            
+            $subject = "{$service_name}测试 - AI代码调试系统";
+            $message = "这是一封{$service_name}测试邮件，发送时间: " . date('Y-m-d H:i:s');
 
             if (sendEmail($to_email, $subject, $message)) {
-                setMessage("SMTP连接测试成功，邮件已发送到 {$to_email}", 'success');
+                setMessage("{$service_name}测试成功，邮件已发送到 {$to_email}", 'success');
             } else {
-                setMessage("SMTP连接测试失败，请检查配置", 'error');
+                setMessage("{$service_name}测试失败，请检查配置", 'error');
             }
         }
     }
@@ -313,7 +327,7 @@ $indexnow_enabled = getConfigValue($config, 'indexnow_enabled', '0');
             <div class="tab-buttons">
                 <button class="tab-button" onclick="switchTab('ai-prompt-tab', event)">AI 提示词配置</button>
                 <button class="tab-button active" onclick="switchTab('api-tab', event)">API配置</button>
-                <button class="tab-button" onclick="switchTab('smtp-tab', event)">Resend配置</button>
+                <button class="tab-button" onclick="switchTab('smtp-tab', event)">邮箱配置</button>
                 <button class="tab-button" onclick="switchTab('system-tab', event)">系统设置</button>
                 <button class="tab-button" onclick="switchTab('seo-tab', event)">SEO配置</button>
                 <button class="tab-button" onclick="switchTab('update-tab', event)">系统更新</button>
@@ -380,15 +394,23 @@ $indexnow_enabled = getConfigValue($config, 'indexnow_enabled', '0');
                 </div>
             </div>
 
-            <!-- Resend配置 -->
+            <!-- 邮件配置 -->
             <div id="smtp-tab" class="tab-content">
-                <h3>Resend配置</h3>
-                <p>配置Resend邮件服务API。</p>
+                <h3>邮件配置</h3>
+                <p>配置邮件发送服务。</p>
 
                 <form method="POST" class="config-form" style="display: block;">
                     <div class="form-group" style="width: 100%; margin-bottom: 15px;">
-                        <label for="smtp_password">Resend API密钥</label>
-                        <input type="password" id="smtp_password" name="smtp_password" value="<?php echo htmlspecialchars($smtp_password); ?>" placeholder="re_..." required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <label for="email_service">邮件发送服务</label>
+                        <select id="email_service" name="email_service" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="resend" <?php echo (getConfigValue($config, 'email_service') === 'resend') ? 'selected' : ''; ?>>Resend API</option>
+                            <option value="smtp" <?php echo (getConfigValue($config, 'email_service') === 'smtp') ? 'selected' : ''; ?>>SMTP服务器</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="width: 100%; margin-bottom: 15px;">
+                        <label for="smtp_password">Resend API密钥 / SMTP密码</label>
+                        <input type="password" id="smtp_password" name="smtp_password" value="<?php echo htmlspecialchars($smtp_password); ?>" placeholder="re_... 或 SMTP密码" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                     </div>
 
                     <div class="form-group" style="width: 100%; margin-bottom: 15px;">
@@ -399,6 +421,34 @@ $indexnow_enabled = getConfigValue($config, 'indexnow_enabled', '0');
                     <div class="form-group" style="width: 100%; margin-bottom: 15px;">
                         <label for="smtp_from_name">发件人名称</label>
                         <input type="text" id="smtp_from_name" name="smtp_from_name" value="<?php echo htmlspecialchars($smtp_from_name); ?>" placeholder="AI代码调试系统" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+
+                    <div class="form-group" style="width: 100%; margin-bottom: 15px;">
+                        <label for="smtp_host">SMTP服务器地址</label>
+                        <input type="text" id="smtp_host" name="smtp_host" value="<?php echo htmlspecialchars($smtp_host); ?>" placeholder="smtp.example.com" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <small>仅在选择SMTP服务器时需要</small>
+                    </div>
+
+                    <div class="form-group" style="width: 100%; margin-bottom: 15px;">
+                        <label for="smtp_port">SMTP服务器端口</label>
+                        <input type="number" id="smtp_port" name="smtp_port" value="<?php echo htmlspecialchars($smtp_port); ?>" placeholder="587" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <small>仅在选择SMTP服务器时需要</small>
+                    </div>
+
+                    <div class="form-group" style="width: 100%; margin-bottom: 15px;">
+                        <label for="smtp_username">SMTP用户名</label>
+                        <input type="text" id="smtp_username" name="smtp_username" value="<?php echo htmlspecialchars($smtp_username); ?>" placeholder="SMTP用户名" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <small>仅在选择SMTP服务器时需要</small>
+                    </div>
+
+                    <div class="form-group" style="width: 100%; margin-bottom: 15px;">
+                        <label for="smtp_secure">SMTP加密方式</label>
+                        <select id="smtp_secure" name="smtp_secure" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="tls" <?php echo (getConfigValue($config, 'smtp_secure') === 'tls') ? 'selected' : ''; ?>>TLS</option>
+                            <option value="ssl" <?php echo (getConfigValue($config, 'smtp_secure') === 'ssl') ? 'selected' : ''; ?>>SSL</option>
+                            <option value="" <?php echo (getConfigValue($config, 'smtp_secure') === '') ? 'selected' : ''; ?>>无</option>
+                        </select>
+                        <small>仅在选择SMTP服务器时需要</small>
                     </div>
 
                     <div class="form-group" style="width: 100%; margin-bottom: 15px;">
@@ -415,12 +465,13 @@ $indexnow_enabled = getConfigValue($config, 'indexnow_enabled', '0');
                 </form>
 
                 <div class="test-section">
-                    <h4>💡 Resend配置说明</h4>
+                    <h4>💡 邮件配置说明</h4>
                     <ul>
-                        <li><strong>API密钥</strong>: 从Resend控制台获取的API密钥，以"re_"开头</li>
-                        <li><strong>发件人邮箱</strong>: 已在Resend中验证的邮箱地址</li>
-                        <li><strong>发件人名称</strong>: 显示在邮件中的发件人名称</li>
-                        <li><strong>域名验证</strong>: 确保域名已在Resend中添加并验证</li>
+                        <li><strong>Resend API</strong>: 简单易用，无需配置SMTP服务器，只需API密钥</li>
+                        <li><strong>SMTP服务器</strong>: 传统邮件发送方式，需要完整的SMTP配置</li>
+                        <li><strong>Resend API密钥</strong>: 从Resend控制台获取的API密钥，以"re_"开头</li>
+                        <li><strong>SMTP配置</strong>: 需要服务器地址、端口、用户名、密码等信息</li>
+                        <li><strong>发件人邮箱</strong>: 确保该邮箱已在相应服务中验证</li>
                     </ul>
                 </div>
             </div>

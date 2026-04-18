@@ -2,173 +2,254 @@
 require_once 'config.php';
 configureSession();
 session_start();
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'components' . DIRECTORY_SEPARATOR . 'sidebar.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'components' . DIRECTORY_SEPARATOR . 'styles.php';
 
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
 
-initDataFiles();
+if (!isset($_GET['type']) || !isset($_SESSION['verify_token'])) {
+    header('Location: profile.php');
+    exit;
+}
 
-$error = '';
-$success = '';
+$type = $_GET['type'];
+$token = $_SESSION['verify_token'];
+$verification = getEmailVerification($token);
 
+if (!$verification || time() > $verification['expires_at']) {
+    header('Location: profile.php?message=验证链接已过期或无效');
+    exit;
+}
 
-if (isset($_GET['token'])) {
-    $token = trim($_GET['token']);
-    $users = getUsers();
+$message = '';
+$message_type = 'info';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $code = trim($_POST['code']);
     
-    $user_found = false;
-    foreach ($users as $username => $user) {
-        if (isset($user['verification_token']) && $user['verification_token'] === $token) {
-            $user_found = true;
+    if (empty($code)) {
+        $message = '请输入验证码';
+        $message_type = 'error';
+    } elseif ($code !== $verification['code']) {
+        $message = '验证码错误';
+        $message_type = 'error';
+    } else {
+        // 验证成功，根据类型执行相应操作
+        if ($type === 'email') {
+            // 更新邮箱
+            $users = getUsers();
+            $email = $_SESSION['verify_email'];
+            $display_name = $_SESSION['verify_display_name'];
+            $avatar_url = $_SESSION['verify_avatar_url'];
             
-
-            if (strtotime($user['verification_expires']) < time()) {
-                $error = '验证链接已过期，请重新注册或联系管理员。';
-                break;
-            }
-            
-
-            $users[$username]['email_verified'] = true;
-            $users[$username]['verification_token'] = null;
-            $users[$username]['verification_expires'] = null;
-            $users[$username]['verified_at'] = date('Y-m-d H:i:s');
-            
-            if (saveUsers($users)) {
-                $success = '邮箱验证成功！您现在可以登录系统了。';
-                
-
-                if (isset($_SESSION['temp_user']) && $_SESSION['temp_user'] === $username) {
-                    $_SESSION['user_id'] = $username;
-                    $_SESSION['username'] = $username;
-                    $_SESSION['is_admin'] = $user['is_admin'];
-                    unset($_SESSION['temp_user']);
+            foreach ($users as $id => $user) {
+                if ($user['username'] === $_SESSION['user_id']) {
+                    $users[$id]['display_name'] = $display_name;
+                    $users[$id]['email'] = $email;
+                    $users[$id]['avatar_url'] = $avatar_url;
+                    saveUsers($users);
+                    $_SESSION['username'] = $display_name;
+                    break;
                 }
-            } else {
-                $error = '验证失败，请稍后重试或联系管理员。';
             }
-            break;
+            
+            $message = '邮箱验证成功，个人资料已更新';
+            $message_type = 'success';
+        } elseif ($type === 'password') {
+            // 更新密码
+            $users = getUsers();
+            $new_password = $_SESSION['verify_new_password'];
+            
+            foreach ($users as $id => $user) {
+                if ($user['username'] === $_SESSION['user_id']) {
+                    $users[$id]['password'] = hashPassword($new_password);
+                    saveUsers($users);
+                    break;
+                }
+            }
+            
+            $message = '密码修改成功';
+            $message_type = 'success';
         }
+        
+        // 清理验证信息
+        deleteEmailVerification($token);
+        unset($_SESSION['verify_token']);
+        unset($_SESSION['verify_email']);
+        unset($_SESSION['verify_display_name']);
+        unset($_SESSION['verify_avatar_url']);
+        unset($_SESSION['verify_new_password']);
+        
+        // 3秒后跳转到个人资料页
+        echo '<script>setTimeout(function() { window.location.href = "profile.php?message=' . urlencode($message) . '"; }, 3000);</script>';
     }
-    
-    if (!$user_found) {
-        $error = '无效的验证链接，请检查链接是否正确。';
-    }
-} else {
-    $error = '缺少验证参数。';
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>邮箱验证 - AI代码调试系统</title>
+    <title>邮箱验证 - <?php echo htmlspecialchars($config['site_name'] ?? 'AI代码调试系统'); ?></title>
+    <?php renderStyles(); ?>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f5f5f5;
-            color: #333;
-            line-height: 1.6;
-        }
-        
         .verify-container {
             max-width: 500px;
             margin: 50px auto;
-            padding: 40px;
+            padding: 30px;
             background: white;
             border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            text-align: center;
+            box-shadow: var(--shadow);
         }
-        
+
+        .dark-mode .verify-container {
+            background: var(--dark-bg);
+            color: var(--text-light);
+        }
+
         .verify-header {
+            text-align: center;
             margin-bottom: 30px;
         }
-        
-        .verify-header h1 {
-            color: #333;
-            margin-bottom: 10px;
+
+        .verify-header h2 {
+            color: var(--primary-color);
         }
-        
-        .message {
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 5px;
-            text-align: center;
+
+        .form-group {
+            margin-bottom: 20px;
         }
-        
-        .message.success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--text-dark);
+            font-weight: bold;
         }
-        
-        .message.error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+
+        .dark-mode .form-group label {
+            color: var(--text-light);
         }
-        
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: var(--light-bg);
+            color: var(--text-dark);
+            font-size: 16px;
+        }
+
+        .dark-mode .form-group input {
+            background: var(--dark-bg);
+            color: var(--text-light);
+            border-color: var(--border-color);
+        }
+
         .btn {
-            padding: 10px 20px;
+            width: 100%;
+            padding: 12px;
+            background: var(--primary-color);
+            color: white;
             border: none;
-            border-radius: 5px;
-            text-decoration: none;
+            border-radius: 4px;
             cursor: pointer;
-            transition: all 0.3s;
-            display: inline-block;
-            margin: 5px;
+            font-size: 16px;
         }
-        
-        .btn-primary {
-            background-color: #007bff;
-            color: white;
-        }
-        
-        .btn-secondary {
-            background-color: #6c757d;
-            color: white;
-        }
-        
+
         .btn:hover {
             opacity: 0.9;
-            transform: translateY(-1px);
+        }
+
+        .message {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .message.success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .message.error {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .resend-link {
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        .resend-link a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .resend-link a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
-    <div class="verify-container">
-        <div class="verify-header">
-            <h1>邮箱验证</h1>
-            <p>AI代码调试系统</p>
+    <?php renderSidebar('profile'); ?>
+
+    <div class="main-content">
+        <div class="content-header">
+            <h2>邮箱验证</h2>
+            <button class="theme-toggle" onclick="toggleDarkMode()">🌙 深色模式</button>
         </div>
-        
-        <?php if ($success): ?>
-            <div class="message success">
-                <?php echo $success; ?>
+
+        <div class="verify-container">
+            <div class="verify-header">
+                <h2>请输入验证码</h2>
+                <p>我们已向您的邮箱发送了验证码，请查收</p>
+                <p class="email-display">邮箱：<?php echo htmlspecialchars($verification['email']); ?></p>
             </div>
-            <div style="margin-top: 30px;">
-                <?php if (isset($_SESSION['user_id'])): ?>
-                    <a href="dashboard.php" class="btn btn-primary">进入控制台</a>
-                <?php else: ?>
-                    <a href="login.php" class="btn btn-primary">立即登录</a>
-                <?php endif; ?>
-                <a href="index.php" class="btn btn-secondary">返回首页</a>
+
+            <?php if ($message): ?>
+                <div class="message <?php echo $message_type; ?>">
+                    <?php echo htmlspecialchars($message); ?>
+                </div>
+            <?php endif; ?>
+
+            <form method="POST">
+                <div class="form-group">
+                    <label for="code">验证码</label>
+                    <input type="text" id="code" name="code" placeholder="请输入6位验证码" required maxlength="6">
+                </div>
+                <button type="submit" class="btn">验证</button>
+            </form>
+
+            <div class="resend-link">
+                <a href="#" onclick="alert('验证码已重新发送'); return false;">未收到验证码？点击重新发送</a>
             </div>
-        <?php elseif ($error): ?>
-            <div class="message error">
-                <?php echo $error; ?>
-            </div>
-            <div style="margin-top: 30px;">
-                <a href="register.php" class="btn btn-primary">重新注册</a>
-                <a href="index.php" class="btn btn-secondary">返回首页</a>
-            </div>
-        <?php endif; ?>
+        </div>
     </div>
+
+    <script>
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+        }
+
+        // 加载深色模式设置
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.body.classList.add('dark-mode');
+        }
+
+        // 自动聚焦到验证码输入框
+        document.getElementById('code').focus();
+
+        // 限制输入为数字
+        document.getElementById('code').addEventListener('input', function(e) {
+            this.value = this.value.replace(/\D/g, '');
+        });
+    </script>
 </body>
 </html>

@@ -57,7 +57,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($email_taken) {
                 $message = '该邮箱已被其他用户使用';
                 $message_type = 'error';
+            } elseif (empty($user['email']) || strcasecmp($user['email'], $email) !== 0) {
+                // 邮箱有变更，需要验证
+                $code = generateVerificationCode();
+                $token = generateVerificationToken($email);
+                
+                if (saveEmailVerification($email, $code, $token)) {
+                    if (sendEmailVerification($email, $code)) {
+                        $_SESSION['verify_email'] = $email;
+                        $_SESSION['verify_token'] = $token;
+                        $_SESSION['verify_display_name'] = $display_name;
+                        $_SESSION['verify_avatar_url'] = $avatar_url;
+                        header('Location: verify.php?type=email');
+                        exit;
+                    } else {
+                        $message = '邮件发送失败，请稍后重试';
+                        $message_type = 'error';
+                    }
+                } else {
+                    $message = '验证信息保存失败，请稍后重试';
+                    $message_type = 'error';
+                }
             } else {
+                // 邮箱未变更，直接更新
                 foreach ($users as $id => $u) {
                     if ($u['username'] === $user['username']) {
                         $users[$id]['display_name'] = $display_name;
@@ -87,15 +109,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($new_password !== $confirm_password) {
             $message = '新密码与确认密码不匹配';
             $message_type = 'error';
+        } elseif (empty($user['email'])) {
+            $message = '请先绑定邮箱';
+            $message_type = 'error';
         } else {
-            foreach ($users as $id => $u) {
-                if ($u['username'] === $user['username']) {
-                    $users[$id]['password'] = hashPassword($new_password);
-                    saveUsers($users);
-                    $message = '密码修改成功';
-                    $message_type = 'success';
-                    break;
+            // 密码修改需要邮箱验证
+            $code = generateVerificationCode();
+            $token = generateVerificationToken($user['email']);
+            
+            if (saveEmailVerification($user['email'], $code, $token)) {
+                if (sendEmailVerification($user['email'], $code)) {
+                    $_SESSION['verify_token'] = $token;
+                    $_SESSION['verify_new_password'] = $new_password;
+                    header('Location: verify.php?type=password');
+                    exit;
+                } else {
+                    $message = '邮件发送失败，请稍后重试';
+                    $message_type = 'error';
                 }
+            } else {
+                $message = '验证信息保存失败，请稍后重试';
+                $message_type = 'error';
             }
         }
     }

@@ -23,8 +23,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $invite_code = isset($_POST['invite_code']) ? trim($_POST['invite_code']) : '';
     $turnstile_token = $_POST['cf-turnstile-response'] ?? '';
 
-    // 验证验证码
-    if (!verifyTurnstile($turnstile_token)) {
+    // 验证验证码（对爬虫友好）
+    $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    $is_bot = strpos(strtolower($user_agent), 'bot') !== false || 
+              strpos(strtolower($user_agent), 'crawler') !== false || 
+              strpos(strtolower($user_agent), 'spider') !== false || 
+              strpos(strtolower($user_agent), 'bing') !== false;
+    
+    if (!$is_bot && !verifyTurnstile($turnstile_token)) {
         $error = '验证码验证失败，请重试';
     } elseif (empty($username) || empty($email) || empty($password)) {
         $error = '请填写所有必填字段';
@@ -79,7 +85,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     if (saveUsers($users)) {
                         // 注册成功后提交首页到IndexNow
-                        submitUrlToIndexNow('http://' . $_SERVER['HTTP_HOST'] . '/');
+                        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+                        submitUrlToIndexNow($protocol . $_SERVER['HTTP_HOST'] . '/');
 
                         if (!empty($invite_code)) {
                             $success = "注册成功！使用邀请码获得50初始积分。";
@@ -110,18 +117,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         :root {
             --primary-color: #007bff;
             --success-color: #28a745;
+            --danger-color: #dc3545;
             --warning-color: #ffc107;
+            --info-color: #17a2b8;
+            --light-bg: #f8f9fa;
+            --dark-bg: #343a40;
+            --text-light: #f8f9fa;
+            --text-dark: #343a40;
+            --border-color: #dee2e6;
+            --shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .dark-mode {
+            --light-bg: #2d3748;
+            --dark-bg: #1a202c;
+            --text-light: #f7fafc;
+            --text-dark: #e2e8f0;
+            --border-color: #4a5568;
+            --shadow: 0 2px 10px rgba(0,0,0,0.3);
+            --primary-color: #63b3ed;
         }
         
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            transition: background-color 0.3s, color 0.3s;
         }
         
         body {
             font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: var(--light-bg);
+            color: var(--text-dark);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -131,20 +158,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .register-container {
             background: white;
             padding: 40px;
-            border-radius: 10px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
             width: 100%;
-            max-width: 400px;
+            max-width: 450px;
+            position: relative;
+        }
+        
+        .dark-mode .register-container {
+            background: var(--dark-bg);
+            color: var(--text-light);
         }
         
         .register-header {
             text-align: center;
             margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--border-color);
         }
         
         .register-header h1 {
             color: var(--primary-color);
             margin-bottom: 10px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .register-header p {
+            color: var(--text-dark);
+            font-size: 14px;
+        }
+        
+        .dark-mode .register-header p {
+            color: var(--text-light);
         }
         
         .form-group {
@@ -153,52 +199,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         .form-group label {
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
             font-weight: bold;
-            color: #333;
+            color: var(--text-dark);
+            font-size: 14px;
+        }
+        
+        .dark-mode .form-group label {
+            color: var(--text-light);
         }
         
         .form-group input {
             width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
+            padding: 12px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
             font-size: 14px;
+            background: var(--light-bg);
+            color: var(--text-dark);
+            transition: all 0.3s;
+        }
+        
+        .dark-mode .form-group input {
+            background: var(--dark-bg);
+            color: var(--text-light);
+            border-color: var(--border-color);
         }
         
         .form-group input:focus {
             outline: none;
             border-color: var(--primary-color);
-            box-shadow: 0 0 5px rgba(0,123,255,0.3);
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
         }
         
         .invite-code-section {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 15px 0;
+            background: var(--light-bg);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
             border-left: 4px solid var(--warning-color);
+            border: 1px solid var(--border-color);
+        }
+        
+        .dark-mode .invite-code-section {
+            background: var(--dark-bg);
+            border-color: var(--border-color);
         }
         
         .invite-code-section h4 {
             color: var(--warning-color);
-            margin-bottom: 5px;
+            margin-bottom: 8px;
+            font-size: 16px;
         }
         
         .invite-code-section p {
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 10px;
+            font-size: 13px;
+            color: var(--text-dark);
+            margin-bottom: 12px;
+        }
+        
+        .dark-mode .invite-code-section p {
+            color: var(--text-light);
+        }
+        
+        .invite-code-section input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+            background: var(--light-bg);
+            color: var(--text-dark);
+        }
+        
+        .dark-mode .invite-code-section input {
+            background: var(--dark-bg);
+            color: var(--text-light);
+            border-color: var(--border-color);
         }
         
         .btn {
             width: 100%;
-            padding: 12px;
+            padding: 14px;
             border: none;
-            border-radius: 5px;
+            border-radius: 8px;
             font-size: 16px;
+            font-weight: bold;
             cursor: pointer;
             transition: all 0.3s;
+            display: inline-block;
+            text-align: center;
         }
         
         .btn-primary {
@@ -208,41 +298,104 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         .btn-primary:hover {
             background: #0056b3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,123,255,0.3);
         }
         
         .message {
-            padding: 10px;
-            margin-bottom: 15px;
-            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
             text-align: center;
+            border-left: 4px solid;
         }
         
         .message.error {
             background: #f8d7da;
             color: #721c24;
-            border: 1px solid #f5c6cb;
+            border-color: var(--danger-color);
+        }
+        
+        .dark-mode .message.error {
+            background: rgba(220, 53, 69, 0.1);
+            color: #f8d7da;
         }
         
         .message.success {
             background: #d4edda;
             color: #155724;
-            border: 1px solid #c3e6cb;
+            border-color: var(--success-color);
+        }
+        
+        .dark-mode .message.success {
+            background: rgba(40, 167, 69, 0.1);
+            color: #d4edda;
         }
         
         .login-link {
             text-align: center;
-            margin-top: 20px;
+            margin-top: 24px;
+            font-size: 14px;
         }
         
         .login-link a {
             color: var(--primary-color);
             text-decoration: none;
+            font-weight: bold;
+            transition: color 0.3s;
+        }
+        
+        .login-link a:hover {
+            text-decoration: underline;
+        }
+        
+        .theme-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: var(--light-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .dark-mode .theme-toggle {
+            background: var(--dark-bg);
+            border-color: var(--border-color);
+        }
+        
+        .theme-toggle:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .cf-turnstile {
+            margin: 20px 0;
+        }
+        
+        @media (max-width: 768px) {
+            .register-container {
+                padding: 30px 20px;
+                margin: 20px;
+            }
+            
+            .register-header h1 {
+                font-size: 20px;
+            }
         }
     </style>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
     <div class="register-container">
+        <button class="theme-toggle" onclick="toggleDarkMode()" title="切换主题">🌙</button>
+        
         <div class="register-header">
             <h1>用户注册</h1>
             <p>创建您的AI代码调试账户</p>
@@ -254,29 +407,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         <?php if ($success): ?>
             <div class="message success"><?php echo $success; ?></div>
-            <div style="text-align: center; margin-top: 20px;">
+            <div style="text-align: center; margin-top: 24px;">
                 <a href="login.php" class="btn btn-primary">立即登录</a>
             </div>
         <?php else: ?>
             <form method="POST" action="">
                 <div class="form-group">
                     <label for="username">用户名</label>
-                    <input type="text" id="username" name="username" required>
+                    <input type="text" id="username" name="username" required placeholder="请输入用户名">
                 </div>
                 
                 <div class="form-group">
                     <label for="email">邮箱地址</label>
-                    <input type="email" id="email" name="email" required>
+                    <input type="email" id="email" name="email" required placeholder="请输入邮箱地址">
                 </div>
                 
                 <div class="form-group">
                     <label for="password">密码</label>
-                    <input type="password" id="password" name="password" required>
+                    <input type="password" id="password" name="password" required placeholder="请输入密码（至少6位）">
                 </div>
                 
                 <div class="form-group">
                     <label for="confirm_password">确认密码</label>
-                    <input type="password" id="confirm_password" name="confirm_password" required>
+                    <input type="password" id="confirm_password" name="confirm_password" required placeholder="请再次输入密码">
                 </div>
                 
                 <div class="invite-code-section">
@@ -297,5 +450,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         <?php endif; ?>
     </div>
+    
+    <script>
+        // 简单的深色模式切换
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+        }
+
+        // 加载深色模式设置
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.body.classList.add('dark-mode');
+        }
+    </script>
 </body>
 </html>

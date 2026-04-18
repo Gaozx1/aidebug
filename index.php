@@ -60,22 +60,43 @@ $announcement = $config['announcement'] ?? '';
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            padding: 60px 20px;
+            padding: 80px 20px;
             text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .main-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(0,123,255,0.05) 0%, rgba(23,162,184,0.05) 100%);
+            z-index: 0;
+        }
+
+        .main-content > * {
+            position: relative;
+            z-index: 1;
         }
 
         .main-content h1 {
-            font-size: 3rem;
+            font-size: 3.5rem;
             color: var(--primary-color);
-            margin-bottom: 30px;
+            margin-bottom: 20px;
             font-weight: bold;
+            line-height: 1.2;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .main-content p {
-            font-size: 1.3rem;
+            font-size: 1.4rem;
             max-width: 800px;
             margin: 0 auto 40px;
             color: var(--text-dark);
+            line-height: 1.6;
         }
 
         .nav-buttons {
@@ -83,17 +104,25 @@ $announcement = $config['announcement'] ?? '';
             gap: 20px;
             justify-content: center;
             flex-wrap: wrap;
+            margin-bottom: 60px;
         }
 
         .btn {
-            padding: 12px 30px;
+            padding: 14px 32px;
             border: none;
-            border-radius: 8px;
-            font-size: 1rem;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: bold;
             cursor: pointer;
             text-decoration: none;
             display: inline-block;
             transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.15);
         }
 
         .btn-primary {
@@ -123,9 +152,58 @@ $announcement = $config['announcement'] ?? '';
             background: #138496;
         }
 
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            max-width: 1000px;
+            margin: 0 auto 60px;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            transition: all 0.3s;
+            text-align: left;
+        }
+
+        .dark-mode .feature-card {
+            background: var(--dark-bg);
+            color: var(--text-light);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+
+        .feature-card h3 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        .feature-card p {
+            font-size: 1rem;
+            margin: 0;
+            color: var(--text-dark);
+        }
+
+        .dark-mode .feature-card p {
+            color: var(--text-light);
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+        }
+
         .footer {
             text-align: center;
-            padding: 20px;
+            padding: 30px;
             background: var(--dark-bg);
             color: var(--text-light);
             margin-top: auto;
@@ -144,9 +222,60 @@ $announcement = $config['announcement'] ?? '';
         .dark-mode .main-content p {
             color: var(--text-light);
         }
+
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--light-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            z-index: 1000;
+            box-shadow: var(--shadow);
+        }
+
+        .dark-mode .theme-toggle {
+            background: var(--dark-bg);
+            border-color: var(--border-color);
+        }
+
+        .theme-toggle:hover {
+            background: var(--primary-color);
+            color: white;
+            transform: scale(1.1);
+        }
+
+        @media (max-width: 768px) {
+            .main-content h1 {
+                font-size: 2.5rem;
+            }
+            
+            .main-content p {
+                font-size: 1.2rem;
+            }
+            
+            .nav-buttons {
+                flex-direction: column;
+                align-items: center;
+                gap: 15px;
+            }
+            
+            .btn {
+                width: 200px;
+            }
+        }
     </style>
 </head>
 <body>
+    <button class="theme-toggle" onclick="toggleDarkMode()" title="切换主题">🌙</button>
+    
     <div class="main-content">
         <h1><?php echo htmlspecialchars($site_name); ?></h1>
         <p>专业的 AI 代码调试与管理系统，帮助您快速定位和解决代码问题。通过智能分析，提升您的编程效率。</p>
@@ -156,6 +285,24 @@ $announcement = $config['announcement'] ?? '';
             <a href="register.php" class="btn btn-secondary">注册</a>
             <a href="sitemap.html" class="btn btn-info">网站介绍</a>
         </div>
+        
+        <div class="features">
+            <div class="feature-card">
+                <div class="feature-icon">🤖</div>
+                <h3>智能代码分析</h3>
+                <p>利用AI技术自动分析代码，快速定位bug和性能问题，提供专业的修复建议。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3>详细的分析报告</h3>
+                <p>生成全面的代码分析报告，包括问题定位、解决方案和优化建议。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔒</div>
+                <h3>安全可靠</h3>
+                <p>本地存储分析数据，保护您的代码隐私，确保数据安全。</p>
+            </div>
+        </div>
     </div>
 
     <div class="footer">
@@ -163,7 +310,7 @@ $announcement = $config['announcement'] ?? '';
     </div>
 
     <script>
-        // 简单的深色模式切换（如果需要）
+        // 简单的深色模式切换
         function toggleDarkMode() {
             document.body.classList.toggle('dark-mode');
             localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));

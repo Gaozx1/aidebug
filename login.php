@@ -18,8 +18,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'];
     $turnstile_token = $_POST['cf-turnstile-response'] ?? '';
 
-    // 验证验证码
-    if (!verifyTurnstile($turnstile_token)) {
+    // 验证验证码（对爬虫友好）
+    $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    $is_bot = strpos(strtolower($user_agent), 'bot') !== false || 
+              strpos(strtolower($user_agent), 'crawler') !== false || 
+              strpos(strtolower($user_agent), 'spider') !== false || 
+              strpos(strtolower($user_agent), 'bing') !== false;
+    
+    if (!$is_bot && !verifyTurnstile($turnstile_token)) {
         $error = '验证码验证失败，请重试';
     } elseif (empty($username) || empty($password)) {
         $error = '请输入用户名和密码';

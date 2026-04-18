@@ -6,6 +6,15 @@ ini_set('default_socket_timeout', 60);
 
 date_default_timezone_set('Asia/Shanghai');
 
+// 加载PHPMailer
+spl_autoload_register(function ($class) {
+    $class = str_replace('\\', '/', $class);
+    $file = __DIR__ . '/PHPMailer/src/' . $class . '.php';
+    if (file_exists($file)) {
+        require_once $file;
+    }
+});
+
 define('DATA_DIR', 'data');
 define('USERS_FILE', DATA_DIR . '/users.json');
 define('RECORDS_FILE', DATA_DIR . '/records.json');
@@ -78,7 +87,8 @@ function initDataFiles() {
         'update_branch' => 'main',
         'turnstile_site_key' => 'your_site_key_here',  // 添加：Cloudflare Turnstile 站点密钥
         'turnstile_secret_key' => 'your_secret_key_here',  // 添加：Cloudflare Turnstile 秘密密钥
-        'email_enabled' => '0',
+        'email_enabled' => '1',
+        'email_service' => 'resend',
         'indexnow_enabled' => '0',  // IndexNow 快速索引功能
         'github_client_id' => '',
         'github_client_secret' => '',
@@ -399,17 +409,15 @@ function renderAnnouncementBanner() {
 function sendEmail($to, $subject, $message) {
     $config = getConfig();
     
-
-    if (!getConfigValue($config, 'email_enabled', '0')) {
-        return false;
+    $email_service = getConfigValue($config, 'email_service', 'resend');
+    
+    if ($email_service === 'resend') {
+        $api_key = getConfigValue($config, 'smtp_password');
+        $from_email = getConfigValue($config, 'smtp_from_email') ?: 'noreply@system.com';
+        return sendEmailWithResendAPI($to, $subject, $message, $api_key, $from_email);
+    } else {
+        return sendSMTPEmail($to, $subject, $message, $config);
     }
-    
-
-    $api_key = getConfigValue($config, 'smtp_password');
-    $from_email = getConfigValue($config, 'smtp_from_email') ?: 'noreply@system.com';
-    
-
-    return sendEmailWithResendAPI($to, $subject, $message, $api_key, $from_email);
 }
 
 
@@ -640,6 +648,71 @@ function generateId() {
     return uniqid('', true) . '_' . mt_rand(1000, 9999);
 }
 
+function generateVerificationCode($length = 6) {
+    return mt_rand(100000, 999999);
+}
+
+function generateVerificationToken($email) {
+    return hash('sha256', $email . time() . mt_rand());
+}
+
+function saveEmailVerification($email, $code, $token) {
+    $verifications = loadEncryptedData(DATA_DIR . '/email_verifications.json');
+    $verifications[$token] = [
+        'email' => $email,
+        'code' => $code,
+        'token' => $token,
+        'created_at' => time(),
+        'expires_at' => time() + 3600 // 1小时过期
+    ];
+    return saveEncryptedData(DATA_DIR . '/email_verifications.json', $verifications);
+}
+
+function getEmailVerification($token) {
+    $verifications = loadEncryptedData(DATA_DIR . '/email_verifications.json');
+    return isset($verifications[$token]) ? $verifications[$token] : null;
+}
+
+function deleteEmailVerification($token) {
+    $verifications = loadEncryptedData(DATA_DIR . '/email_verifications.json');
+    if (isset($verifications[$token])) {
+        unset($verifications[$token]);
+        return saveEncryptedData(DATA_DIR . '/email_verifications.json', $verifications);
+    }
+    return false;
+}
+
+function cleanupExpiredVerifications() {
+    $verifications = loadEncryptedData(DATA_DIR . '/email_verifications.json');
+    $now = time();
+    $cleaned = false;
+    
+    foreach ($verifications as $token => $verification) {
+        if ($verification['expires_at'] < $now) {
+            unset($verifications[$token]);
+            $cleaned = true;
+        }
+    }
+    
+    if ($cleaned) {
+        saveEncryptedData(DATA_DIR . '/email_verifications.json', $verifications);
+    }
+}
+
+function sendEmailVerification($email, $code) {
+    $config = getConfig();
+    $site_name = getConfigValue($config, 'site_name', 'AI代码调试系统');
+    
+    $subject = "{$site_name} - 邮箱验证";
+    $message = "<h2>邮箱验证</h2>
+                <p>您正在尝试修改邮箱地址或密码，需要验证您的邮箱。</p>
+                <p>验证码：<strong>{$code}</strong></p>
+                <p>此验证码将在1小时后过期。</p>
+                <p>如果您没有进行此操作，请忽略此邮件。</p>";
+    
+    return sendEmail($email, $subject, $message);
+}
+
 function setMessage($message, $type = 'info') {
     $_SESSION['message'] = $message;
     $_SESSION['message_type'] = $type;
@@ -734,12 +807,18 @@ function callAIAnalysis($code, $description) {
     $api_key = getConfigValue($config, 'api_key');
     $api_base_url = getConfigValue($config, 'api_base_url', 'https://api.openai.com/v1');
     $api_model = getConfigValue($config, 'api_model', 'gpt-3.5-turbo');
+    $ai_prompt_system = getConfigValue($config, 'ai_prompt_system', '你是一名专业的代码调试助手。请分析代码并提供详细的反馈。');
+    $ai_prompt_user = getConfigValue($config, 'ai_prompt_user', '代码描述：{description}\n\n代码：\n{code}');
 
     if (empty($api_key)) {
         return 'API密钥未配置';
     }
 
     $url = rtrim($api_base_url, '/') . '/chat/completions';
+
+    // 替换用户提示中的占位符
+    $user_prompt = str_replace('{description}', $description, $ai_prompt_user);
+    $user_prompt = str_replace('{code}', $code, $user_prompt);
 
     $messages = [
         [
@@ -1110,13 +1189,82 @@ function autoUpdateFromGithub($repo, $branch = 'main') {
             $content = curl_exec($ch);
             curl_close($ch);
 
-            if ($content && file_put_contents($file['name'], $content) !== false) {
-                $updatedFiles[] = $file['name'];
+            if ($content) {
+                // 特殊处理config.php文件
+                if ($file['name'] == 'config.php') {
+                    $content = processConfigFile($content);
+                }
+                
+                if (file_put_contents($file['name'], $content) !== false) {
+                    $updatedFiles[] = $file['name'];
+                }
             }
         }
     }
 
     return ['success' => true, 'message' => '更新成功，文件：' . implode(', ', $updatedFiles)];
+}
+
+function processConfigFile($content) {
+    // 移除所有注释
+    $content = preg_replace('/\/\*[\s\S]*?\*\//', '', $content);
+    $content = preg_replace('/\/\/.*$/m', '', $content);
+    
+    // 清理空白行
+    $content = preg_replace('/\s*\n\s*/', "\n", $content);
+    
+    // 确保配置文件的基本结构
+    if (!preg_match('/define\(\s*\'CONFIG_FILE\'\s*,\s*\'.*\'\s*\);/', $content)) {
+        $content = str_replace('define(\'SHARES_FILE\', DATA_DIR . \'/shares.json\');', 'define(\'SHARES_FILE\', DATA_DIR . \'/shares.json\');\n\ndefine(\'CONFIG_FILE\', DATA_DIR . \'/config.json\');', $content);
+    }
+    
+    // 确保initDataFiles函数中包含配置文件初始化
+    if (!preg_match('/if \(!file_exists\(CONFIG_FILE\)\) \{/', $content)) {
+        // 定义默认配置
+        $defaultConfig = [
+            'api_key' => '',
+            'api_base_url' => 'https://api.openai.com/v1',
+            'api_model' => 'gpt-3.5-turbo',
+            'smtp_host' => 'smtp.example.com',
+            'smtp_port' => '587',
+            'smtp_username' => '',
+            'smtp_password' => '',
+            'smtp_from_email' => '',
+            'smtp_from_name' => 'AI代码调试系统',
+            'site_name' => 'AI代码调试系统',
+            'site_description' => '专业的AI代码调试和分析平台',
+            'analysis_cost' => 30,
+            'signin_reward' => 50,
+            'invite_reward' => 100,
+            'announcement_enabled' => '0',
+            'announcement_text' => '',
+            'update_repo' => 'Gaozx1/aidebug',
+            'update_branch' => 'main',
+            'turnstile_site_key' => 'your_site_key_here',
+            'turnstile_secret_key' => 'your_secret_key_here',
+            'email_enabled' => '0',
+            'indexnow_enabled' => '0',
+            'github_client_id' => '',
+            'github_client_secret' => '',
+            'github_redirect_uri' => 'http://debug.mcapple.top/oauth_callback.php?provider=github',
+            'ai_prompt_system' => '你是一名专业的代码调试助手。请分析代码并提供详细的反馈。',
+            'ai_prompt_user' => '代码描述：{description}\n\n代码：\n{code}',
+        ];
+        
+        // 格式化配置数组，使其符合人类自然的书写习惯
+        $mergedConfigStr = "array(\n";
+        foreach ($defaultConfig as $key => $value) {
+            $valueStr = is_string($value) ? "'" . addslashes($value) . "'" : $value;
+            $mergedConfigStr .= "    '{$key}' => {$valueStr},\n";
+        }
+        $mergedConfigStr .= ")";
+        
+        $configInitCode = "\n    \$defaultConfig = {$mergedConfigStr};\n    \n    if (!file_exists(CONFIG_FILE)) {\n        saveConfig(\$defaultConfig);\n    }\n";
+        
+        $content = str_replace('if (!file_exists(SHARES_FILE)) {\n        saveShares([]);\n    }', 'if (!file_exists(SHARES_FILE)) {\n        saveShares([]);\n    }' . $configInitCode, $content);
+    }
+    
+    return $content;
 }
 // Cloudflare Turnstile 验证码验证函数
 function verifyTurnstile($token) {
@@ -1165,7 +1313,8 @@ function submitToIndexNow($urls) {
     }
 
     $key = 'aidebug-indexnow-key-2026';
-    $keyLocation = 'http://' . $_SERVER['HTTP_HOST'] . '/' . $key . '.txt';
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+    $keyLocation = $protocol . $_SERVER['HTTP_HOST'] . '/' . $key . '.txt';
 
     $data = [
         'host' => $_SERVER['HTTP_HOST'],
