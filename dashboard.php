@@ -777,7 +777,18 @@ $site_name = getConfigValue($config, 'site_name', 'AI代码调试系统');
     <div class="main-content">
         <div class="content-header">
             <h2>代码调试控制台</h2>
-            <button class="theme-toggle" onclick="toggleDarkMode()">🌙 深色模式</button>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div class="language-selector">
+                    <button class="language-toggle" style="background: var(--primary-color); color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 5px;" title="切换语言">
+                        🌍
+                    </button>
+                    <div class="language-dropdown" style="position: absolute; top: 60px; right: 20px; background: var(--light-bg); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: var(--shadow); padding: 10px; display: none; z-index: 1000;">
+                        <a href="language_switch.php?lang=zh_CN" style="display: block; padding: 8px 15px; text-decoration: none; color: var(--text-dark); transition: background 0.3s; border-radius: 4px;" class="<?php echo getCurrentLanguage() === 'zh_CN' ? 'active' : ''; ?>"><?php echo getCurrentLanguage() === 'zh_CN' ? '✓ ' : ''; ?>中文</a>
+                        <a href="language_switch.php?lang=en" style="display: block; padding: 8px 15px; text-decoration: none; color: var(--text-dark); transition: background 0.3s; border-radius: 4px;" class="<?php echo getCurrentLanguage() === 'en' ? 'active' : ''; ?>"><?php echo getCurrentLanguage() === 'en' ? '✓ ' : ''; ?>English</a>
+                    </div>
+                </div>
+                <button class="theme-toggle" onclick="toggleDarkMode()">🌙 深色模式</button>
+            </div>
         </div>
         
         <?php if (isset($_SESSION['message'])): ?>
@@ -1171,6 +1182,23 @@ $site_name = getConfigValue($config, 'site_name', 'AI代码调试系统');
         document.addEventListener('DOMContentLoaded', function() {
             highlightCode();
             
+            // 语言选择器
+            const languageToggle = document.querySelector('.language-toggle');
+            const languageDropdown = document.querySelector('.language-dropdown');
+            
+            if (languageToggle && languageDropdown) {
+                languageToggle.addEventListener('click', function() {
+                    languageDropdown.style.display = languageDropdown.style.display === 'block' ? 'none' : 'block';
+                });
+                
+                // 点击页面其他地方关闭语言选择器
+                document.addEventListener('click', function(event) {
+                    const languageSelector = document.querySelector('.language-selector');
+                    if (languageSelector && !languageSelector.contains(event.target)) {
+                        languageDropdown.style.display = 'none';
+                    }
+                });
+            }
 
             <?php if (isset($_SESSION['pending_record_id'])): ?>
             showProgress('检测到待处理的记录，请重新提交分析', 0, true);

@@ -275,6 +275,13 @@ $announcement = $config['announcement'] ?? '';
 </head>
 <body>
     <button class="theme-toggle" onclick="toggleDarkMode()" title="切换主题">🌙</button>
+    <div class="language-selector" style="position: fixed; top: 20px; right: 80px; z-index: 1000;">
+        <button class="language-toggle" style="background: var(--light-bg); border: 1px solid var(--border-color); border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s; box-shadow: var(--shadow);" title="切换语言">🌍</button>
+        <div class="language-dropdown" style="position: absolute; top: 60px; right: 0; background: var(--light-bg); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: var(--shadow); padding: 10px; display: none;">
+            <a href="language_switch.php?lang=zh_CN" style="display: block; padding: 8px 15px; text-decoration: none; color: var(--text-dark); transition: background 0.3s; border-radius: 4px;" class="<?php echo getCurrentLanguage() === 'zh_CN' ? 'active' : ''; ?>"><?php echo getCurrentLanguage() === 'zh_CN' ? '✓ ' : ''; ?>中文</a>
+            <a href="language_switch.php?lang=en" style="display: block; padding: 8px 15px; text-decoration: none; color: var(--text-dark); transition: background 0.3s; border-radius: 4px;" class="<?php echo getCurrentLanguage() === 'en' ? 'active' : ''; ?>"><?php echo getCurrentLanguage() === 'en' ? '✓ ' : ''; ?>English</a>
+        </div>
+    </div>
     
     <div class="main-content">
         <h1><?php echo htmlspecialchars($site_name); ?></h1>
@@ -320,6 +327,20 @@ $announcement = $config['announcement'] ?? '';
         if (localStorage.getItem('darkMode') === 'true') {
             document.body.classList.add('dark-mode');
         }
+
+        // 语言选择器
+        document.querySelector('.language-toggle').addEventListener('click', function() {
+            const dropdown = document.querySelector('.language-dropdown');
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+        });
+
+        // 点击页面其他地方关闭语言选择器
+        document.addEventListener('click', function(event) {
+            const languageSelector = document.querySelector('.language-selector');
+            if (!languageSelector.contains(event.target)) {
+                document.querySelector('.language-dropdown').style.display = 'none';
+            }
+        });
     </script>
 </body>
 </html>

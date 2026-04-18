@@ -57,34 +57,34 @@ function renderSidebar($current_page = '') {
         </div>
 
         <div class="sidebar-section">
-            <h3>快速操作</h3>
+            <h3><?php echo t('quick_actions'); ?></h3>
             <ul class="sidebar-nav">
-                <li><a href="signin.php" class="<?php echo $current_page === 'signin' ? 'active' : ''; ?>" style="background: white; color: #28a745; border: 2px solid #28a745; text-align: center;">每日签到</a></li>
-                <li><a href="dashboard.php" class="<?php echo $current_page === 'dashboard' ? 'active' : ''; ?>">代码调试</a></li>
-                <li><a href="profile.php" class="<?php echo $current_page === 'profile' ? 'active' : ''; ?>">个人主页</a></li>
-                <li><a href="invite.php" class="<?php echo $current_page === 'invite' ? 'active' : ''; ?>">邀请好友</a></li>
-                <li><a href="redeem.php" class="<?php echo $current_page === 'redeem' ? 'active' : ''; ?>">积分兑换</a></li>
+                <li><a href="signin.php" class="<?php echo $current_page === 'signin' ? 'active' : ''; ?>" style="background: white; color: #28a745; border: 2px solid #28a745; text-align: center;"><?php echo t('daily_sign_in'); ?></a></li>
+                <li><a href="dashboard.php" class="<?php echo $current_page === 'dashboard' ? 'active' : ''; ?>"><?php echo t('code_debug'); ?></a></li>
+                <li><a href="profile.php" class="<?php echo $current_page === 'profile' ? 'active' : ''; ?>"><?php echo t('profile'); ?></a></li>
+                <li><a href="invite.php" class="<?php echo $current_page === 'invite' ? 'active' : ''; ?>"><?php echo t('invite_friends'); ?></a></li>
+                <li><a href="redeem.php" class="<?php echo $current_page === 'redeem' ? 'active' : ''; ?>"><?php echo t('redeem_points'); ?></a></li>
                 <?php if ($is_admin): ?>
-                    <li><a href="admin.php" class="<?php echo $current_page === 'admin' ? 'active' : ''; ?>">管理后台</a></li>
+                    <li><a href="admin.php" class="<?php echo $current_page === 'admin' ? 'active' : ''; ?>"><?php echo t('admin_dashboard'); ?></a></li>
                 <?php endif; ?>
-                <li><a href="logout.php">退出登录</a></li>
+                <li><a href="logout.php"><?php echo t('logout'); ?></a></li>
             </ul>
         </div>
 
         <div class="sidebar-section">
-            <h3>最近记录</h3>
+            <h3><?php echo t('recent_records'); ?></h3>
             <?php if (empty($recentRecords)): ?>
-                <p style="color: #666; font-style: italic; text-align: center;">暂无记录</p>
+                <p style="color: #666; font-style: italic; text-align: center;"><?php echo t('no_records'); ?></p>
             <?php else: ?>
                 <?php foreach ($recentRecords as $record): ?>
                     <div class="record-item">
                         <div class="record-title"><?php echo htmlspecialchars($record['title']); ?></div>
                         <div class="record-preview"><?php echo htmlspecialchars(substr($record['problem'], 0, 50)); ?>...</div>
-                        <a href="records.php?id=<?php echo $record['id']; ?>" style="font-size: 12px; color: var(--primary-color);">查看详情</a>
+                        <a href="records.php?id=<?php echo $record['id']; ?>" style="font-size: 12px; color: var(--primary-color);"><?php echo t('view_details'); ?></a>
                     </div>
                 <?php endforeach; ?>
                 <div class="view-all">
-                    <a href="records_list.php">查看全部记录 →</a>
+                    <a href="records_list.php"><?php echo t('view_all_records'); ?></a>
                 </div>
             <?php endif; ?>
         </div>

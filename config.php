@@ -38,6 +38,63 @@ define('SITE_NAME', 'AI代码调试系统');
 
 define('ENCRYPTION_KEY', 'MySecureKey2024!@#$%^&*()ABCD');
 
+define('DEFAULT_LANGUAGE', 'zh_CN');
+define('LANGUAGE_DIR', __DIR__ . '/languages');
+
+function getCurrentLanguage() {
+    if (isset($_SESSION['language'])) {
+        return $_SESSION['language'];
+    }
+    if (isset($_COOKIE['language'])) {
+        return $_COOKIE['language'];
+    }
+    $config = getConfig();
+    return getConfigValue($config, 'language', DEFAULT_LANGUAGE);
+}
+
+function setLanguage($lang) {
+    $supportedLanguages = ['zh_CN', 'en'];
+    if (!in_array($lang, $supportedLanguages)) {
+        $lang = DEFAULT_LANGUAGE;
+    }
+    $_SESSION['language'] = $lang;
+    setcookie('language', $lang, time() + (86400 * 30), '/');
+}
+
+function t($key, $replace = []) {
+    static $translations = null;
+    static $currentLang = null;
+    
+    $lang = getCurrentLanguage();
+    
+    if ($translations === null || $currentLang !== $lang) {
+        $langFile = LANGUAGE_DIR . '/' . $lang . '.php';
+        if (file_exists($langFile)) {
+            $translations = require $langFile;
+        } else {
+            $langFile = LANGUAGE_DIR . '/zh_CN.php';
+            if (file_exists($langFile)) {
+                $translations = require $langFile;
+            } else {
+                $translations = [];
+            }
+        }
+        $currentLang = $lang;
+    }
+    
+    if (!isset($translations[$key])) {
+        return $key;
+    }
+    
+    $text = $translations[$key];
+    
+    foreach ($replace as $placeholder => $value) {
+        $text = str_replace(':' . $placeholder, $value, $text);
+    }
+    
+    return $text;
+}
+
 
 function initDataFiles() {
     if (!is_dir(DATA_DIR)) {
@@ -95,6 +152,7 @@ function initDataFiles() {
         'github_redirect_uri' => 'http://debug.mcapple.top/oauth_callback.php?provider=github',
         'ai_prompt_system' => '你是一名专业的代码调试助手。请分析代码并提供详细的反馈。',
         'ai_prompt_user' => '代码描述：{description}\n\n代码：\n{code}',
+        'language' => 'zh_CN',
     ];
     
     if (!file_exists(CONFIG_FILE)) {
