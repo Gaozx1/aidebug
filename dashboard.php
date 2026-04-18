@@ -66,8 +66,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['debug_code'])) {
                 'ai_response' => '',
                 'status' => 'pending',
                 'created_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s')
+                'updated_at' => date('Y-m-d H:i:s'),
+                'expires_at' => date('Y-m-d H:i:s', strtotime('+10 minutes'))
             ];
+
             
 
             $records[$record_id] = $newRecord;
@@ -159,20 +161,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_ai_result'])) 
     }
     
 
-    $error_keywords = ['API请求失败', 'cURL错误', 'HTTP 错误', '响应格式错误'];
-    $is_error = false;
-    foreach ($error_keywords as $keyword) {
-        if (strpos($ai_response, $keyword) !== false) {
-            $is_error = true;
-            break;
+    // 删除过期时间检查，允许空响应
+    if (empty($ai_response)) {
+        // 如果AI响应为空，保存空响应而不是删除记录
+        $records[$record_id]['ai_response'] = 'AI分析无响应，请稍后重试或检查API配置。';
+        $records[$record_id]['status'] = 'completed';
+        $records[$record_id]['updated_at'] = date('Y-m-d H:i:s');
+        
+        if (saveRecords($records)) {
+            echo json_encode(['success' => true, 'message' => '分析完成（AI无响应），积分已扣除。', 'record_id' => $record_id]);
+        } else {
+            echo json_encode(['success' => false, 'message' => '保存记录失败']);
         }
-    }
-    
-    if ($is_error || empty($ai_response)) {
-
-        unset($records[$record_id]);
-        saveRecords($records);
-        echo json_encode(['success' => false, 'message' => 'AI分析失败：' . ($ai_response ?: '无响应')]);
         exit;
     }
     

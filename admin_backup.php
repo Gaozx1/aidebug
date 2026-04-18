@@ -13,16 +13,6 @@ if (!isset($_SESSION['user_id']) || !$_SESSION['is_admin']) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['save_ai_prompt_config'])) {
-        $config = getConfig();
-        $config['ai_prompt_system'] = $_POST['ai_prompt_system'] ?? '';
-        $config['ai_prompt_user'] = $_POST['ai_prompt_user'] ?? '';
-        saveConfig($config);
-        setMessage('AI prompt configuration saved!', 'success');
-        header('Location: admin.php');
-        exit;
-    }
-
 
     if (isset($_POST['save_api_config'])) {
         $api_key = trim($_POST['api_key']);
@@ -311,7 +301,6 @@ $indexnow_enabled = getConfigValue($config, 'indexnow_enabled', '0');
         <!-- 选项卡 -->
         <div class="admin-section">
             <div class="tab-buttons">
-                <button class="tab-button" onclick="switchTab('ai-prompt-tab', event)">AI 提示词配置</button>
                 <button class="tab-button active" onclick="switchTab('api-tab', event)">API配置</button>
                 <button class="tab-button" onclick="switchTab('smtp-tab', event)">Resend配置</button>
                 <button class="tab-button" onclick="switchTab('system-tab', event)">系统设置</button>
@@ -322,28 +311,7 @@ $indexnow_enabled = getConfigValue($config, 'indexnow_enabled', '0');
                 <button class="tab-button" onclick="switchTab('records-tab', event)">记录管理</button>
             </div>
 
-            <div id="ai-prompt-tab" class="tab-content">
-                <h3>AI 提示词配置</h3>
-                <p>配置 AI 分析提示词。</p>
-                
-                <form method="POST" class="config-form">
-                    <div class="form-group" style="grid-column: 1 / -1;">
-                        <label for="ai_prompt_system">系统提示词</label>
-                        <textarea id="ai_prompt_system" name="ai_prompt_system" rows="4"><?php echo htmlspecialchars(getConfigValue($config, 'ai_prompt_system') ?: '你是一名专业的代码调试助手。'); ?></textarea>
-                    </div>
-                    
-                    <div class="form-group" style="grid-column: 1 / -1;">
-                        <label for="ai_prompt_user">用户提示词模板</label>
-                        <textarea id="ai_prompt_user" name="ai_prompt_user" rows="4"><?php echo htmlspecialchars(getConfigValue($config, 'ai_prompt_user') ?: '代码描述：{description}\n\n代码：\n{code}'); ?></textarea>
-                        <small>使用 {description} 和 {code} 作为占位符</small>
-                    </div>
-                    
-                    <div class="form-group" style="grid-column: 1 / -1;">
-                        <button type="submit" name="save_ai_prompt_config" class="btn btn-primary">保存 AI 提示词配置</button>
-                    </div>
-                </form>
-            </div>
-
+            <!-- API配置 -->
             <div id="api-tab" class="tab-content active">
                 <h3>API配置</h3>
                 <p>配置AI API连接参数，确保代码分析功能正常工作。</p>

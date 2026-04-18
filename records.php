@@ -36,7 +36,72 @@ usort($userRecords, function($a, $b) {
     return strtotime($b['created_at']) - strtotime($a['created_at']);
 });
 $recentRecords = array_slice($userRecords, 0, 5);
+
+// 获取当前记录的分享信息
+$userShares = getUserShares($_SESSION['user_id']);
+$currentShare = null;
+foreach ($userShares as $share) {
+    if ($share['record_id'] === $record_id) {
+        $currentShare = $share;
+        break;
+    }
+}
+
+// 处理分享操作
+if (isset($_POST['action'])) {
+    if ($_POST['action'] === 'create_share') {
+        $share_id = createShare($record_id, $_SESSION['user_id']);
+        setMessage('分享链接已创建', 'success');
+        header("Location: records.php?id=$record_id");
+        exit;
+    } elseif ($_POST['action'] === 'delete_share' && isset($_POST['share_id'])) {
+        if (deleteShare($_POST['share_id'])) {
+            setMessage('分享链接已删除', 'success');
+        } else {
+            setMessage('删除分享失败', 'error');
+        }
+        header("Location: records.php?id=$record_id");
+        exit;
+    }
+}
+
+// 获取当前记录的分享信息
+$userShares = getUserShares($_SESSION['user_id']);
+$currentShare = null;
+foreach ($userShares as $share) {
+    if ($share['record_id'] === $record_id) {
+        $currentShare = $share;
+        break;
+    }
+}
+
+// 处理分享操作
+if (isset($_POST['action'])) {
+    if ($_POST['action'] === 'create_share') {
+        $share_id = createShare($record_id, $_SESSION['user_id']);
+        setMessage('分享链接已创建', 'success');
+        header("Location: records.php?id=$record_id");
+        exit;
+    } elseif ($_POST['action'] === 'delete_share' && isset($_POST['share_id'])) {
+        if (deleteShare($_POST['share_id'])) {
+            setMessage('分享链接已删除', 'success');
+        } else {
+            setMessage('删除分享失败', 'error');
+        }
+        header("Location: records.php?id=$record_id");
+        exit;
+    }
+}
 ?>
+
+<?php
+function generateShareUrl($share_id) {
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+    $host = $_SERVER['HTTP_HOST'];
+    return $protocol . $host . '/share.php?id=' . $share_id;
+}
+?>
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -512,6 +577,54 @@ $recentRecords = array_slice($userRecords, 0, 5);
         <?php endif; ?>
 
         <div class="record-detail">
+            <!-- 分享功能 -->
+            <div class="record-section" style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin-bottom: 30px;">
+                <h2 style="margin-top: 0;">分享此记录</h2>
+                <?php if ($currentShare): ?>
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                            <div style="background: #e8f5e8; padding: 10px 15px; border-radius: 5px; font-size: 14px; flex: 1;">
+                                <strong>✅ 已分享</strong><br>
+                                <small>查看次数: <?php echo $currentShare['view_count']; ?> | 
+                                创建时间: <?php echo date('Y-m-d H:i', strtotime($currentShare['created_at'])); ?> | 
+                                过期时间: <?php echo date('Y-m-d H:i', strtotime($currentShare['expires_at'])); ?></small>
+                            </div>
+                            <button onclick="copyShareLink('<?php echo generateShareUrl($currentShare['share_id']); ?>')" 
+                                    class="btn btn-primary" style="margin: 0;">
+                                📋 复制分享链接
+                            </button>
+                            <form method="post" style="margin: 0;">
+                                <input type="hidden" name="action" value="delete_share">
+                                <input type="hidden" name="share_id" value="<?php echo $currentShare['share_id']; ?>">
+                                <button type="submit" class="btn btn-danger" 
+                                        onclick="return confirm('确定要删除分享链接吗？删除后其他人将无法访问此记录。')">
+                                    🗑️ 删除分享
+                                </button>
+                            </form>
+                        </div>
+                        <div style="font-size: 12px; color: #666;">
+                            <strong>分享链接：</strong>
+                            <code style="background: #e9ecef; padding: 2px 5px; border-radius: 3px;">
+                                <?php echo generateShareUrl($currentShare['share_id']); ?>
+                            </code>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <div style="text-align: center; padding: 20px;">
+                        <p style="margin-bottom: 15px;">创建分享链接，让其他人无需登录即可查看此记录</p>
+                        <form method="post">
+                            <input type="hidden" name="action" value="create_share">
+                            <button type="submit" class="btn btn-primary" style="font-size: 16px; padding: 10px 20px;">
+                                📤 创建分享链接
+                            </button>
+                        </form>
+                        <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                            分享链接有效期为30天，可随时删除
+                        </p>
+                    </div>
+                <?php endif; ?>
+            </div>
+
             <div class="record-section">
                 <h2>问题标题</h2>
                 <p><?php echo htmlspecialchars($record['title']); ?></p>
@@ -554,7 +667,6 @@ $recentRecords = array_slice($userRecords, 0, 5);
     </div>
 
     <script>
-
         function toggleDarkMode() {
             document.body.classList.toggle('dark-mode');
             const button = document.querySelector('.theme-toggle');
@@ -567,10 +679,52 @@ $recentRecords = array_slice($userRecords, 0, 5);
             }
         }
 
+        function copyShareLink(url) {
+            navigator.clipboard.writeText(url).then(function() {
+                alert('分享链接已复制到剪贴板');
+            }, function(err) {
+                console.error('复制失败: ', err);
+            });
+        }
 
         if (localStorage.getItem('darkMode') === 'enabled') {
             document.body.classList.add('dark-mode');
             document.querySelector('.theme-toggle').textContent = '☀️ 浅色模式';
+        }
+    </script>
+
+    <script>
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+            const button = document.querySelector('.theme-toggle');
+            if (document.body.classList.contains('dark-mode')) {
+                button.textContent = '☀️ 浅色模式';
+                localStorage.setItem('darkMode', 'enabled');
+            } else {
+                button.textContent = '🌙 深色模式';
+                localStorage.setItem('darkMode', 'disabled');
+            }
+        }
+
+        if (localStorage.getItem('darkMode') === 'enabled') {
+            document.body.classList.add('dark-mode');
+            document.querySelector('.theme-toggle').textContent = '☀️ 浅色模式';
+        }
+
+        // 复制分享链接
+        function copyShareLink(url) {
+            navigator.clipboard.writeText(url).then(function() {
+                alert('分享链接已复制到剪贴板！');
+            }, function() {
+                // 兼容旧版浏览器
+                var textArea = document.createElement('textarea');
+                textArea.value = url;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('分享链接已复制到剪贴板！');
+            });
         }
     </script>
 

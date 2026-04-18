@@ -1,6 +1,5 @@
 name: "综合 Bug 反馈"
 description: "遇见了与Oler debug功能相关的 Bug"
-type: "Bug"
 body:
 - type: checkboxes
   id: "yml-1"

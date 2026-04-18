@@ -1,0 +1,19 @@
+ 
+AI Prompt Configuration Instructions 
+==================================== 
+ 
+1. CONFIG.PHP MODIFICATIONS: 
+   ------------------------- 
+   A. Add to defaultConfig array: 
+      'ai_prompt_system' = are a code debugging assistant.', 
+      'ai_prompt_user' = {code}\nDescription: {description}', 
+ 
+   B. Modify callAIAnalysis function: 
+      - Add after config: 
+        $ai_prompt_system = getConfigValue(...); 
+        $ai_prompt_user = getConfigValue(...); 
+        $user_prompt = str_replace(...); 
+ 
+2. ADMIN.PHP MODIFICATIONS: 
+   ------------------------ 
+   A. Add tab button: 

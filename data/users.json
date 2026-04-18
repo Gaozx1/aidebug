@@ -1,0 +1,112 @@
+{
+    "admin": {
+        "username": "admin",
+        "email": "aidebug@mcapple.top",
+        "password": "$2y$12$QfiDcQ4bkGy5GEyC6MmGPuHleX2NRCOmdM53EPDXhHeefr3kbZx4i",
+        "is_admin": 1,
+        "email_verified": true,
+        "created_at": "2026-04-08 11:29:31",
+        "api_enabled": 1,
+        "api_quota": 100,
+        "user_notes": "",
+        "updated_at": "2026-04-08 12:26:05",
+        "points": 1000011609,
+        "last_signin": "2026-04-17",
+        "invite_codes": [
+            {
+                "code": "100B1B38",
+                "created_at": "2026-04-09 11:03:58",
+                "used": false,
+                "used_by": null,
+                "used_at": null
+            },
+            {
+                "code": "68C4DE73",
+                "created_at": "2026-04-09 11:04:10",
+                "used": false,
+                "used_by": null,
+                "used_at": null
+            },
+            {
+                "code": "ADA48B41",
+                "created_at": "2026-04-09 11:04:18",
+                "used": false,
+                "used_by": null,
+                "used_at": null
+            }
+        ],
+        "invite_code": "82F44488",
+        "display_name": "Gaozx1",
+        "avatar_url": "https:\/\/avatars.githubusercontent.com\/u\/183680147?v=4",
+        "oauth_provider": "github",
+        "oauth_id": "183680147",
+        "oauth_bindings": {
+            "github": "183680147"
+        },
+        "last_login": "2026-04-17 17:58:14",
+        "total_signins": 1,
+        "signin_streak": 1
+    },
+    "gaozx": {
+        "username": "gaozx",
+        "email": "admin@mcapple.top",
+        "password": "$2y$12$0AwvC6EsdVjVsXyewSdGWevtZ7YayixiCdyw0GM.GxM4oNtVJeffm",
+        "is_admin": false,
+        "email_verified": true,
+        "verification_token": null,
+        "verification_expires": null,
+        "created_at": "2026-04-08 12:12:17",
+        "verified_at": "2026-04-09 13:38:29",
+        "points": 150,
+        "last_signin": "2026-04-17",
+        "total_signins": 1,
+        "signin_streak": 1
+    },
+    "汉堡": {
+        "id": "69d90ecb7adf18.46871827_1822",
+        "username": "汉堡",
+        "email": "1651375945@qq.com",
+        "password": "$2y$10$sP3OvBJtO9NvNFFfzalvsu6gIT1roNGvIsHDes48jN8\/BZvbLDroy",
+        "points": 110,
+        "is_admin": false,
+        "created_at": "2026-04-10 22:52:59",
+        "last_login": null,
+        "verification_token": null,
+        "verification_expires": null,
+        "email_verified": true,
+        "verified_at": "2026-04-10 22:53:44",
+        "last_signin": "2026-04-17",
+        "total_signins": 1,
+        "signin_streak": 1,
+        "oauth_bindings": {
+            "github": "249749099"
+        },
+        "display_name": "liudaxia-haha",
+        "avatar_url": "https:\/\/avatars.githubusercontent.com\/u\/249749099?v=4"
+    },
+    "LPEY_": {
+        "id": "69d9be26817c40.17670307_2416",
+        "username": "LPEY_",
+        "email": "jwu7788@163.com",
+        "password": "$2y$10$cx\/xk9APtaAojGHkm0tIlePHXfB760fSXlfp08zATpTd3bPuAAR3a",
+        "points": 1040,
+        "is_admin": false,
+        "created_at": "2026-04-11 11:21:10",
+        "last_login": null,
+        "verification_token": null,
+        "verification_expires": null,
+        "email_verified": true,
+        "verified_at": "2026-04-11 11:26:33",
+        "last_signin": "2026-04-11"
+    },
+    "ysz": {
+        "id": "69de3dc1f05070.31611895_1768",
+        "username": "ysz",
+        "email": "ysz2014ysz@163.com",
+        "password": "$2y$10$ZEsmDcVfEYz6uxBiJyDnDOb8ZTIfUBtnIoYL9Pogd0yotslZ8awMq",
+        "points": 100,
+        "is_admin": false,
+        "created_at": "2026-04-14 21:14:42",
+        "last_login": null
+    }
+}

@@ -10,6 +10,7 @@ define('DATA_DIR', 'data');
 define('USERS_FILE', DATA_DIR . '/users.json');
 define('RECORDS_FILE', DATA_DIR . '/records.json');
 define('CONFIG_FILE', DATA_DIR . '/config.json');
+define('SHARES_FILE', DATA_DIR . '/shares.json');
 
 
 // 设置会话过期时间为一周
@@ -81,11 +82,17 @@ function initDataFiles() {
         'indexnow_enabled' => '0',  // IndexNow 快速索引功能
         'github_client_id' => '',
         'github_client_secret' => '',
-        'github_redirect_uri' => 'http://debug.mcapple.top/oauth_callback.php?provider=github'
+        'github_redirect_uri' => 'http://debug.mcapple.top/oauth_callback.php?provider=github',
+        'ai_prompt_system' => '你是一名专业的代码调试助手。请分析代码并提供详细的反馈。',
+        'ai_prompt_user' => '代码描述：{description}\n\n代码：\n{code}',
     ];
     
     if (!file_exists(CONFIG_FILE)) {
         saveConfig($defaultConfig);
+    }
+    
+    if (!file_exists(SHARES_FILE)) {
+        saveShares([]);
     }
 }
 
@@ -95,6 +102,92 @@ initDataFiles();
 
 function hashPassword($password) {
     return password_hash($password, PASSWORD_DEFAULT);
+}
+
+// 分享相关函数
+function getShares() {
+    if (!file_exists(SHARES_FILE)) {
+        return [];
+    }
+    $content = file_get_contents(SHARES_FILE);
+    return json_decode($content, true) ?: [];
+}
+
+function saveShares($shares) {
+    file_put_contents(SHARES_FILE, json_encode($shares, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+}
+
+function generateShareId() {
+    return substr(md5(uniqid() . microtime()), 0, 12);
+}
+
+function createShare($record_id, $user_id, $expire_days = 30) {
+    $shares = getShares();
+    $share_id = generateShareId();
+    
+    $shares[$share_id] = [
+        'record_id' => $record_id,
+        'user_id' => $user_id,
+        'share_id' => $share_id,
+        'created_at' => date('Y-m-d H:i:s'),
+        'expires_at' => date('Y-m-d H:i:s', strtotime("+{$expire_days} days")),
+        'view_count' => 0,
+        'is_active' => true
+    ];
+    
+    saveShares($shares);
+    return $share_id;
+}
+
+function getShare($share_id) {
+    $shares = getShares();
+    return isset($shares[$share_id]) ? $shares[$share_id] : null;
+}
+
+function updateShareViewCount($share_id) {
+    $shares = getShares();
+    if (isset($shares[$share_id])) {
+        $shares[$share_id]['view_count']++;
+        saveShares($shares);
+    }
+}
+
+function deleteShare($share_id) {
+    $shares = getShares();
+    if (isset($shares[$share_id])) {
+        unset($shares[$share_id]);
+        saveShares($shares);
+        return true;
+    }
+    return false;
+}
+
+function getUserShares($user_id) {
+    $shares = getShares();
+    $user_shares = [];
+    foreach ($shares as $share) {
+        if ($share['user_id'] === $user_id) {
+            $user_shares[$share['share_id']] = $share;
+        }
+    }
+    return $user_shares;
+}
+
+function cleanupExpiredShares() {
+    $shares = getShares();
+    $now = time();
+    $cleaned = false;
+    
+    foreach ($shares as $share_id => $share) {
+        if (strtotime($share['expires_at']) < $now) {
+            unset($shares[$share_id]);
+            $cleaned = true;
+        }
+    }
+    
+    if ($cleaned) {
+        saveShares($shares);
+    }
 }
 
 
@@ -651,11 +744,11 @@ function callAIAnalysis($code, $description) {
     $messages = [
         [
             'role' => 'system',
-            'content' => '你是一个专业的代码调试助手。请分析用户提供的代码，找出潜在的错误、改进建议和最佳实践。回复格式：先总结问题，然后详细说明每个问题，最后给出修复后的代码。'
+            'content' => $ai_prompt_system
         ],
         [
             'role' => 'user',
-            'content' => "代码描述：{$description}\n\n代码：\n{$code}"
+            'content' => $user_prompt
         ]
     ];
 
